@@ -8,6 +8,7 @@ class Region extends BaseModel
         'name' => 'name',
         'image' => 'image',
         'description' => 'description',
+        'slug' => 'slug'
     ];
 
     protected $casts = [

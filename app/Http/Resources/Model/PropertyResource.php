@@ -11,13 +11,16 @@ use Illuminate\Support\Facades\Auth;
 
 class PropertyResource extends BasicResource
 {
-    public function toArray(Request $request): array
+   public function toArray(Request $request): array
     {
-        return $this->initResource(
-            ModelColumnsService::getServiceFor(
-                Property::class
-            )
+        $data = $this->initResource(
+            ModelColumnsService::getServiceFor(Property::class)
         );
+
+        // Make sure selling_points is always included
+        $data['selling_points'] = $this->selling_points;
+
+        return $data;
     }
 
     protected function initResource($modelColumnsService): array

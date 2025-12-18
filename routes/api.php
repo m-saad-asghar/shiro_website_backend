@@ -13,6 +13,9 @@ use App\Http\Controllers\Api\User\Payment\StripePaymentController;
 use App\Http\Controllers\Api\User\UserController;
 use App\Http\Controllers\Api\User\UserPaymentController;
 use App\Http\Controllers\Api\Property\PropertyLeadController;
+use App\Http\Controllers\Api\DeveloperController;
+use App\Http\Controllers\Api\CommunityController;
+use App\Http\Controllers\Api\ProjectController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -41,6 +44,15 @@ Route::prefix('static')->controller(StaticController::class)->group(function () 
 Route::post('/contact/submit', [UserController::class, 'submitContactForm']);
 Route::post('/subscribe', [UserController::class, 'store']);
 
+Route::get('/download-brochure', function () {
+    return response()->download(
+        storage_path('app/public/projects/Shiro Estate Creek Bay Brochure.pdf'),
+        'Shiro Estate Creek Bay Brochure.pdf'
+    );
+});
+
+
+
 Route::get('/properties/filters', [PropertyController::class, 'getFilterOptions']);
 Route::post('/properties/search', [PropertyController::class, 'searchProperty']);
 Route::post('/properties/search-by-location', [PropertyController::class, 'searchByLocation']);
@@ -50,6 +62,10 @@ Route::get('/property/slug/{slug}', [PropertyController::class, 'showBySlug']);
 
 Route::post('/contact-agent', [UserController::class, 'submitContactAgentForm']);
 
+Route::get('/fetch_developer_data/{slug}', [DeveloperController::class, 'show']);
+Route::get('/fetch_community_data/{slug}', [CommunityController::class, 'show']);
+Route::get('/fetch_projects_from_developer/{slug}', [DeveloperController::class, 'projectsFromDeveloper']);
+Route::get('/fetch_project_details/{slug}', [ProjectController::class, 'show']);
 
 Route::get('/agents', [AgentDeveloperController::class, 'allAgents']);
 Route::get('/developers', [AgentDeveloperController::class, 'allDevelopers']);

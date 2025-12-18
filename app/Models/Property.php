@@ -11,6 +11,7 @@ class Property extends BaseModel
 {
         protected $fillable = [
         'title',
+        'selling_points',
         'meta_title',
         'meta_description',
         'slug',
@@ -229,7 +230,6 @@ class Property extends BaseModel
             return null;
         }
         
-        // إذا كان الرابط كامل بالفعل، نرجعه كما هو
         if (strpos($value, '/storage/') !== false || strpos($value, 'http') === 0) {
             return $value;
         }

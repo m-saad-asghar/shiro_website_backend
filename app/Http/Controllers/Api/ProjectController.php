@@ -11,8 +11,8 @@ class ProjectController extends Controller
  public function show(string $slug)
 {
     $rows = DB::table('projects')
-        ->join('communities', 'communities.id', '=', 'projects.community_id')
-        ->join('developers', 'developers.id', '=', 'communities.developer_id')
+        // ->join('communities', 'communities.id', '=', 'projects.community_id')
+        ->join('developers', 'developers.id', '=', 'projects.developer_id')
         ->where('projects.slug', $slug)
         ->select(
             'projects.id as project_id',
@@ -23,7 +23,7 @@ class ProjectController extends Controller
             'projects.starting_price as starting_price',
             'projects.handover as handover',
             'projects.payment_plan as payment_plan',
-            'communities.name as community_name',
+            // 'communities.name as community_name',
             'developers.name as developer_name',
         )
         ->get();
@@ -154,7 +154,7 @@ $locationOfProject = DB::table('project_locations')
             'project_starting_price' => $row->starting_price,
             'project_handover' => $row->handover,
             'project_payment_plan' => $row->payment_plan,
-            'community_name' => $row->community_name,
+            // 'community_name' => $row->community_name,
             'developer_name' => $row->developer_name,
 
             // ✅ arrays

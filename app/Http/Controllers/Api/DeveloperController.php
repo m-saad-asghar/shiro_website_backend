@@ -67,8 +67,8 @@ class DeveloperController extends Controller
     public function projectsFromDeveloper(string $slug)
     {
        $rows = DB::table('developers')
-        ->leftJoin('communities', 'communities.developer_id', '=', 'developers.id')
-        ->leftJoin('projects', 'projects.community_id', '=', 'communities.id')
+        // ->leftJoin('communities', 'communities.developer_id', '=', 'developers.id')
+        ->leftJoin('projects', 'projects.developer_id', '=', 'developers.id')
         ->where('developers.slug', $slug)
         ->select(
             'developers.id as developer_id',
@@ -78,8 +78,8 @@ class DeveloperController extends Controller
             'developers.logo as developer_logo',
             'developers.thumbnail as developer_main_image',
 
-            'communities.id as community_id',
-            'communities.name as community_name',
+            // 'communities.id as community_id',
+            // 'communities.name as community_name',
             // 'communities.slug as community_slug',
             // 'communities.description as community_description',
             // 'communities.main_image as community_main_image',
@@ -100,19 +100,19 @@ class DeveloperController extends Controller
     }
 
     $developerRow = $rows->first();
-    $communities = $rows
-        ->filter(fn ($row) => !is_null($row->community_id))
-        ->map(fn ($row) => [
-            'id'                   => $row->community_id,
-            'name'                 => $row->community_name,
-            // 'slug'                 => $row->community_slug,
-            // 'description'          => $row->community_description,
-            // 'community_main_image' => $row->community_main_image,
-            // 'selling_point'        => $row->community_selling_point,
-        ])
-        ->unique('id')
-        ->values()
-        ->all();
+    // $communities = $rows
+    //     ->filter(fn ($row) => !is_null($row->community_id))
+    //     ->map(fn ($row) => [
+    //         'id'                   => $row->community_id,
+    //         'name'                 => $row->community_name,
+    //         'slug'                 => $row->community_slug,
+    //         'description'          => $row->community_description,
+    //         'community_main_image' => $row->community_main_image,
+    //         'selling_point'        => $row->community_selling_point,
+    //     ])
+    //     ->unique('id')
+    //     ->values()
+    //     ->all();
 
     $projects = $rows
         ->filter(fn ($row) => !is_null($row->project_id))
@@ -122,8 +122,8 @@ class DeveloperController extends Controller
             'slug'               => $row->project_slug,
             'description'        => $row->project_description,
             'project_main_image' => $row->project_main_image,
-            'community_id'       => $row->community_id,
-            'community_name'     => $row->community_name,
+            // 'community_id'       => $row->community_id,
+            // 'community_name'     => $row->community_name,
             // 'community_slug'     => $row->community_slug,
         ])
         ->unique('id')

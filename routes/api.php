@@ -51,8 +51,10 @@ Route::get('/download-brochure', function () {
     );
 });
 
-
-
+Route::get('/listing_details/{reference}', [PropertyController::class, 'listingDetails']);
+Route::get('/show_featured_properties', [PropertyController::class, 'showFeaturedProperties']);
+Route::post('/show_sale_properties', [PropertyController::class, 'showSaleProperties']);
+Route::post('/show_rent_properties', [PropertyController::class, 'showRentProperties']);
 Route::get('/properties/filters', [PropertyController::class, 'getFilterOptions']);
 Route::post('/properties/search', [PropertyController::class, 'searchProperty']);
 Route::post('/properties/search-by-location', [PropertyController::class, 'searchByLocation']);

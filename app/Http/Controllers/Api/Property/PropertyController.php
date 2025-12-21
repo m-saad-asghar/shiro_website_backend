@@ -8,10 +8,403 @@ use App\Models\Currency;
 use App\Models\Property;
 use App\Models\PropertyType;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\DB;
 class PropertyController extends Controller
 {
     use GeneralTrait;
+
+  public function listingDetails($reference)
+{
+    // 1) Listing + Employee join (only required employee fields)
+    $listing = DB::table('listings')
+        ->leftJoin('employees', 'employees.id', '=', 'listings.agent_id')
+        ->where('listings.reference', $reference)
+        ->select(
+            'listings.*',
+            'employees.name as employee_name',
+            'employees.orn as employee_orn',
+            'employees.slug as employee_slug',
+            'employees.position as employee_position',
+            'employees.profile_picture as employee_profile_picture',
+            'employees.email as employee_email',
+            'employees.phone as employee_phone',
+            'employees.whatsapp as employee_whatsapp'
+        )
+        ->first();
+
+    if (!$listing) {
+        return response()->json([
+            'status' => false,
+            'message' => 'Listing not found',
+        ], 404);
+    }
+
+    // 2) Images (ONLY image names)
+    $images = DB::table('listing_images')
+        ->where('listing_id', $listing->id)
+        ->orderByRaw('sorting IS NULL, sorting ASC')
+        ->pluck('image')
+        ->values(); // ensure clean array indexes
+
+    // 3) Amenities (ONLY amenity names)
+    $amenities = DB::table('amenity_listings')
+        ->join('amenities', 'amenities.id', '=', 'amenity_listings.amenity_id')
+        ->where('amenity_listings.listing_id', $listing->id)
+        ->pluck('amenities.name')
+        ->values();
+
+    // 4) Build employee object (clean response)
+    $employee = [
+        'name'            => $listing->employee_name,
+        'slug'            => $listing->employee_slug,
+        'orn'             => $listing->employee_orn,
+        'position'        => $listing->employee_position,
+        'profile_picture' => $listing->employee_profile_picture,
+        'email'           => $listing->employee_email,
+        'phone'           => $listing->employee_phone,
+        'whatsapp'        => $listing->employee_whatsapp,
+    ];
+
+    // Optional: remove join fields from listing object (so listing stays clean)
+    unset(
+        $listing->employee_name,
+        $listing->employee_slug,
+        $listing->employee_position,
+        $listing->employee_profile_picture,
+        $listing->employee_email,
+        $listing->employee_phone,
+        $listing->employee_whatsapp
+    );
+
+    return response()->json([
+        'status' => true,
+        'data' => [
+            'listing'   => $listing,
+            'employee'  => $employee,
+            'images'    => $images,
+            'amenities' => $amenities,
+        ],
+    ]);
+}
+
+
+
+    public function showRentProperties(Request $request)
+{
+    // ✅ POST body params
+    $perPage = (int) $request->input('per_page', 6);
+    if ($perPage <= 0) $perPage = 6;
+
+    // enforce 6 items per page max
+    $perPage = min($perPage, 6);
+
+    $page = (int) $request->input('page', 1);
+    if ($page <= 0) $page = 1;
+
+    // query sale listings (property_category = 'Sale') and active
+    $query = DB::table('listings')
+        ->select([
+            'id',
+            'reference',
+            'bedrooms',
+            'bathrooms',
+            'price',
+            'area',
+            'title',
+            'description',
+            'community',
+            'sub_community',
+            'property',
+            'active',
+            'is_featured',
+        ])
+        ->where('property_category', 'Rent')
+        ->where('active', 1)
+        ->orderByDesc('id');
+
+    // paginate using page & perPage
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+    // When no results
+    if ($paginator->total() === 0) {
+        return response()->json([
+            'success' => true,
+            'count' => 0,
+            'data' => [],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'next_page_url' => $paginator->nextPageUrl(),
+                'prev_page_url' => $paginator->previousPageUrl(),
+            ],
+        ], 200);
+    }
+
+    // get items for the current page and their IDs
+    $items = collect($paginator->items());
+    $listingIds = $items->pluck('id')->values()->all();
+
+    $imagesRows = DB::table('listing_images')
+        ->select(['listing_id', 'image', 'sorting'])
+        ->whereIn('listing_id', $listingIds)
+        ->orderBy('listing_id')
+        ->orderBy('sorting')
+        ->get();
+
+    // Group images by listing_id
+    $imagesByListing = [];
+    foreach ($imagesRows as $row) {
+        $imagesByListing[$row->listing_id][] = $row->image;
+    }
+
+    // Attach images + company_contact to each listing
+    $sale_listings = $items->map(function ($listing) use ($imagesByListing) {
+        return [
+            'reference'      => $listing->reference,
+            'id'             => $listing->id,
+            'bedrooms'       => $listing->bedrooms,
+            'bathrooms'      => $listing->bathrooms,
+            'price'          => $listing->price,
+            'area'           => $listing->area,
+            'title'          => $listing->title,
+            'description'    => $listing->description,
+            'community'      => $listing->community,
+            'sub_community'  => $listing->sub_community,
+            'property'       => $listing->property,
+            'active'         => $listing->active,
+            'is_featured'    => $listing->is_featured,
+            'images'         => $imagesByListing[$listing->id] ?? [],
+
+            // ✅ company contact inside each listing
+            'company_contact' => [
+                'phone'    => env('COMPANY_PHONE'),
+                'whatsapp' => env('COMPANY_WHATSAPP'),
+                'email'    => env('COMPANY_EMAIL'),
+            ],
+        ];
+    })->values();
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'sale_listings' => $sale_listings
+        ],
+        'pagination' => [
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+            'next_page_url' => $paginator->nextPageUrl(),
+            'prev_page_url' => $paginator->previousPageUrl(),
+        ],
+    ], 200);
+}
+
+  public function showSaleProperties(Request $request)
+{
+    // ✅ POST body params
+    $perPage = (int) $request->input('per_page', 6);
+    if ($perPage <= 0) $perPage = 6;
+
+    // enforce 6 items per page max
+    $perPage = min($perPage, 6);
+
+    $page = (int) $request->input('page', 1);
+    if ($page <= 0) $page = 1;
+
+    // query sale listings (property_category = 'Sale') and active
+    $query = DB::table('listings')
+        ->select([
+            'id',
+            'reference',
+            'bedrooms',
+            'bathrooms',
+            'price',
+            'area',
+            'title',
+            'description',
+            'community',
+            'sub_community',
+            'property',
+            'active',
+            'is_featured',
+        ])
+        ->where('property_category', 'Sale')
+        ->where('active', 1)
+        ->orderByDesc('id');
+
+    // paginate using page & perPage
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+    // When no results
+    if ($paginator->total() === 0) {
+        return response()->json([
+            'success' => true,
+            'count' => 0,
+            'data' => [],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'next_page_url' => $paginator->nextPageUrl(),
+                'prev_page_url' => $paginator->previousPageUrl(),
+            ],
+        ], 200);
+    }
+
+    // get items for the current page and their IDs
+    $items = collect($paginator->items());
+    $listingIds = $items->pluck('id')->values()->all();
+
+    $imagesRows = DB::table('listing_images')
+        ->select(['listing_id', 'image', 'sorting'])
+        ->whereIn('listing_id', $listingIds)
+        ->orderBy('listing_id')
+        ->orderBy('sorting')
+        ->get();
+
+    // Group images by listing_id
+    $imagesByListing = [];
+    foreach ($imagesRows as $row) {
+        $imagesByListing[$row->listing_id][] = $row->image;
+    }
+
+    // Attach images + company_contact to each listing
+    $sale_listings = $items->map(function ($listing) use ($imagesByListing) {
+        return [
+            'reference'      => $listing->reference,
+            'id'             => $listing->id,
+            'bedrooms'       => $listing->bedrooms,
+            'bathrooms'      => $listing->bathrooms,
+            'price'          => $listing->price,
+            'area'           => $listing->area,
+            'title'          => $listing->title,
+            'description'    => $listing->description,
+            'community'      => $listing->community,
+            'sub_community'  => $listing->sub_community,
+            'property'       => $listing->property,
+            'active'         => $listing->active,
+            'is_featured'    => $listing->is_featured,
+            'images'         => $imagesByListing[$listing->id] ?? [],
+
+            // ✅ company contact inside each listing
+            'company_contact' => [
+                'phone'    => env('COMPANY_PHONE'),
+                'whatsapp' => env('COMPANY_WHATSAPP'),
+                'email'    => env('COMPANY_EMAIL'),
+            ],
+        ];
+    })->values();
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'sale_listings' => $sale_listings
+        ],
+        'pagination' => [
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+            'next_page_url' => $paginator->nextPageUrl(),
+            'prev_page_url' => $paginator->previousPageUrl(),
+        ],
+    ], 200);
+}
+
+
+
+
+
+   public function showFeaturedProperties(Request $request)
+{
+    // ✅ limit handling (min any, max capped)
+    $limit = (int) $request->query('limit', 6);
+    if ($limit <= 0) $limit = 6;
+
+    $MAX_LIMIT = 6;
+    if ($limit > $MAX_LIMIT) $limit = $MAX_LIMIT;
+
+    $listings = DB::table('listings')
+        ->select([
+            'id',
+            'reference',
+            'bedrooms',
+            'bathrooms',
+            'price',
+            'area',
+            'title',
+            'community',
+            'sub_community',
+            'property',
+            'active',
+            'is_featured',
+        ])
+        ->where('is_featured', 1)
+        ->where('active', 1)
+        ->orderByDesc('id')
+        ->limit($limit)
+        ->get();
+
+    if ($listings->isEmpty()) {
+        return response()->json([
+            'success' => true,
+            'count' => 0,
+            'data' => [],
+        ], 200);
+    }
+
+    $listingIds = $listings->pluck('id')->values()->all();
+
+    $imagesRows = DB::table('listing_images')
+        ->select(['listing_id', 'image', 'sorting'])
+        ->whereIn('listing_id', $listingIds)
+        ->orderBy('listing_id')
+        ->orderBy('sorting')
+        ->get();
+
+    // ✅ Group images by listing_id
+    $imagesByListing = [];
+    foreach ($imagesRows as $row) {
+        $imagesByListing[$row->listing_id][] = $row->image;
+    }
+
+    // ✅ Attach images + company_contact to each listing
+    $featured_listings = $listings->map(function ($listing) use ($imagesByListing) {
+        return [
+            'reference'      => $listing->reference,
+            'id'             => $listing->id,
+            'bedrooms'       => $listing->bedrooms,
+            'bathrooms'      => $listing->bathrooms,
+            'price'          => $listing->price,
+            'area'           => $listing->area,
+            'title'          => $listing->title,
+            'community'      => $listing->community,
+            'sub_community'  => $listing->sub_community,
+            'property'       => $listing->property,
+            'active'         => $listing->active,
+            'is_featured'    => $listing->is_featured,
+            'images'         => $imagesByListing[$listing->id] ?? [],
+
+            // ✅ company contact inside each listing
+            'company_contact' => [
+                'phone'    => env('COMPANY_PHONE'),
+                'whatsapp' => env('COMPANY_WHATSAPP'),
+                'email'    => env('COMPANY_EMAIL'),
+            ],
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'data' => ["featured_listings" => $featured_listings],
+    ], 200);
+}
+
+
     public function getFilterOptions(Request $request)
     {
         try {

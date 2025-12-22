@@ -13,6 +13,272 @@ class PropertyController extends Controller
 {
     use GeneralTrait;
 
+     public function fetchPropertyTypes(Request $request)
+    {
+        $types = DB::table('property_types')
+            ->select(['id', 'name', 'slug'])
+            ->whereNull('deleted_at') // important since your table has soft deletes
+            ->orderBy('id', 'asc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $types,
+        ], 200);
+    }
+
+    public function showOffplanProperties(Request $request)
+{
+    $perPage = (int) $request->input('per_page', 6);
+    if ($perPage <= 0) $perPage = 6;
+
+    // enforce 6 items per page max
+    $perPage = min($perPage, 6);
+
+    $page = (int) $request->input('page', 1);
+    if ($page <= 0) $page = 1;
+
+    // ✅ filters from request (SAME AS SALE/RENT)
+    $minPrice     = $request->input('min_price', null);
+    $maxPrice     = $request->input('max_price', null);
+    $bedrooms     = $request->input('bedrooms', null);       // array e.g. ["Studio",2,5,7,"7plus"] or ["7+"]
+    $bathrooms    = $request->input('bathrooms', null);      // array e.g. ["7plus",5] or ["7+"]
+    $search       = $request->input('search', null);         // array of slugs e.g. ["dubai-creek-harbour","azizi-riviera-27"]
+    $propertyType = $request->input('property_type', null);  // slug e.g. "apartment"
+
+    // query offplan listings and active
+    $query = DB::table('listings')
+        ->select([
+            'id',
+            'reference',
+            'bedrooms',
+            'bathrooms',
+            'price',
+            'area',
+            'title',
+            'description',
+            'community',
+            'sub_community',
+            'property',
+            'community_slug',
+            'sub_community_slug',
+            'property_slug',
+            'property_type',
+            'active',
+            'is_featured',
+        ])
+        ->where('property_category', 'Offplan')
+        ->where('active', 1);
+
+    // ✅ min/max price filters
+    if ($minPrice !== null && $minPrice !== '' && is_numeric($minPrice)) {
+        $query->where('price', '>=', (float) $minPrice);
+    }
+    if ($maxPrice !== null && $maxPrice !== '' && is_numeric($maxPrice)) {
+        $query->where('price', '<=', (float) $maxPrice);
+    }
+
+    // ✅ property_type filter (slug)
+    if ($propertyType !== null && is_string($propertyType) && trim($propertyType) !== '') {
+        $query->where('property_type', trim($propertyType));
+    }
+
+    // ✅ search filter: LIKE on community_slug, sub_community_slug, property_slug
+    if (is_array($search) && !empty($search)) {
+        $searchTerms = array_values(array_filter(array_map(function ($s) {
+            return is_string($s) ? trim($s) : null;
+        }, $search), function ($s) {
+            return $s !== null && $s !== '';
+        }));
+
+        if (!empty($searchTerms)) {
+            $query->where(function ($q) use ($searchTerms) {
+                foreach ($searchTerms as $term) {
+                    $like = '%' . $term . '%';
+                    $q->orWhere('community_slug', 'LIKE', $like)
+                      ->orWhere('sub_community_slug', 'LIKE', $like)
+                      ->orWhere('property_slug', 'LIKE', $like);
+                }
+            });
+        }
+    }
+
+    // ✅ bedrooms filter (Studio + exact nums + 7plus/7+)
+    if (is_array($bedrooms) && !empty($bedrooms)) {
+        $hasStudio = false;
+        $exactNums = [];
+        $hasSevenPlus = false;
+
+        foreach ($bedrooms as $b) {
+            if ($b === null) continue;
+
+            if (is_string($b)) {
+                $val = trim($b);
+                if ($val === '') continue;
+
+                if (strcasecmp($val, 'studio') === 0) {
+                    $hasStudio = true;
+                    continue;
+                }
+
+                // ✅ support both "7plus" and "7+"
+                if (strcasecmp($val, '7plus') === 0 || preg_match('/^7\s*\+$/', $val)) {
+                    $hasSevenPlus = true;
+                    continue;
+                }
+
+                if (is_numeric($val)) {
+                    $exactNums[] = (int) $val;
+                    continue;
+                }
+            }
+
+            if (is_int($b) || is_float($b) || (is_string($b) && is_numeric($b))) {
+                $exactNums[] = (int) $b;
+            }
+        }
+
+        $exactNums = array_values(array_unique($exactNums));
+
+        $query->where(function ($q) use ($hasStudio, $exactNums, $hasSevenPlus) {
+            if (!empty($exactNums)) {
+                $q->orWhereIn('bedrooms', $exactNums);
+            }
+
+            if ($hasStudio) {
+                $q->orWhere('bedrooms', 'Studio');
+            }
+
+            if ($hasSevenPlus) {
+                $q->orWhere('bedrooms', '>', 7);
+            }
+        });
+    }
+
+    // ✅ bathrooms filter (exact nums + 7plus/7+)
+    if (is_array($bathrooms) && !empty($bathrooms)) {
+        $exactNums = [];
+        $hasSevenPlus = false;
+
+        foreach ($bathrooms as $b) {
+            if ($b === null) continue;
+
+            if (is_string($b)) {
+                $val = trim($b);
+                if ($val === '') continue;
+
+                // ✅ support both "7plus" and "7+"
+                if (strcasecmp($val, '7plus') === 0 || preg_match('/^7\s*\+$/', $val)) {
+                    $hasSevenPlus = true;
+                    continue;
+                }
+
+                if (is_numeric($val)) {
+                    $exactNums[] = (int) $val;
+                    continue;
+                }
+            }
+
+            if (is_int($b) || is_float($b) || (is_string($b) && is_numeric($b))) {
+                $exactNums[] = (int) $b;
+            }
+        }
+
+        $exactNums = array_values(array_unique($exactNums));
+
+        $query->where(function ($q) use ($exactNums, $hasSevenPlus) {
+            if (!empty($exactNums)) {
+                $q->orWhereIn('bathrooms', $exactNums);
+            }
+            if ($hasSevenPlus) {
+                $q->orWhere('bathrooms', '>', 7);
+            }
+        });
+    }
+
+    // keep existing ordering
+    $query->orderByDesc('id');
+
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+    if ($paginator->total() === 0) {
+        return response()->json([
+            'success' => true,
+            'count' => 0,
+            'data' => [],
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'next_page_url' => $paginator->nextPageUrl(),
+                'prev_page_url' => $paginator->previousPageUrl(),
+            ],
+        ], 200);
+    }
+
+    $items = collect($paginator->items());
+    $listingIds = $items->pluck('id')->values()->all();
+
+    $imagesRows = DB::table('listing_images')
+        ->select(['listing_id', 'image', 'sorting'])
+        ->whereIn('listing_id', $listingIds)
+        ->orderBy('listing_id')
+        ->orderBy('sorting')
+        ->get();
+
+    $imagesByListing = [];
+    foreach ($imagesRows as $row) {
+        $imagesByListing[$row->listing_id][] = $row->image;
+    }
+
+    // ✅ keep response keys SAME as your sale/rent response (frontend expects sale_listings)
+    $sale_listings = $items->map(function ($listing) use ($imagesByListing) {
+        return [
+            'reference'      => $listing->reference,
+            'id'             => $listing->id,
+            'bedrooms'       => $listing->bedrooms,
+            'bathrooms'      => $listing->bathrooms,
+            'price'          => $listing->price,
+            'area'           => $listing->area,
+            'title'          => $listing->title,
+            'description'    => $listing->description,
+            'community'      => $listing->community,
+            'sub_community'  => $listing->sub_community,
+            'property'       => $listing->property,
+            'community_slug' => $listing->community_slug ?? null,
+            'sub_community_slug' => $listing->sub_community_slug ?? null,
+            'property_slug'  => $listing->property_slug ?? null,
+            'property_type'  => $listing->property_type ?? null,
+            'active'         => $listing->active,
+            'is_featured'    => $listing->is_featured,
+            'images'         => $imagesByListing[$listing->id] ?? [],
+
+            'company_contact' => [
+                'phone'    => env('COMPANY_PHONE'),
+                'whatsapp' => env('COMPANY_WHATSAPP'),
+                'email'    => env('COMPANY_EMAIL'),
+            ],
+        ];
+    })->values();
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'sale_listings' => $sale_listings
+        ],
+        'pagination' => [
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+            'next_page_url' => $paginator->nextPageUrl(),
+            'prev_page_url' => $paginator->previousPageUrl(),
+        ],
+    ], 200);
+}
+
+
   public function listingDetails($reference)
 {
     // 1) Listing + Employee join (only required employee fields)
@@ -89,9 +355,8 @@ class PropertyController extends Controller
 
 
 
-    public function showRentProperties(Request $request)
+   public function showRentProperties(Request $request)
 {
-    // ✅ POST body params
     $perPage = (int) $request->input('per_page', 6);
     if ($perPage <= 0) $perPage = 6;
 
@@ -101,7 +366,15 @@ class PropertyController extends Controller
     $page = (int) $request->input('page', 1);
     if ($page <= 0) $page = 1;
 
-    // query sale listings (property_category = 'Sale') and active
+    // ✅ filters from request
+    $minPrice     = $request->input('min_price', null);
+    $maxPrice     = $request->input('max_price', null);
+    $bedrooms     = $request->input('bedrooms', null);      // array e.g. ["Studio",2,5,7,"7plus"]
+    $bathrooms    = $request->input('bathrooms', null);     // array e.g. ["7plus",5]
+    $search       = $request->input('search', null);        // array of slugs e.g. ["dubai-creek-harbour","azizi-riviera-27"]
+    $propertyType = $request->input('property_type', null); // slug e.g. "apartment"
+
+    // query rent listings (property_category = 'Rent') and active
     $query = DB::table('listings')
         ->select([
             'id',
@@ -115,17 +388,152 @@ class PropertyController extends Controller
             'community',
             'sub_community',
             'property',
+            'community_slug',
+            'sub_community_slug',
+            'property_slug',
+            'property_type',
             'active',
             'is_featured',
         ])
         ->where('property_category', 'Rent')
-        ->where('active', 1)
-        ->orderByDesc('id');
+        ->where('active', 1);
 
-    // paginate using page & perPage
+    // ✅ min/max price filters
+    if ($minPrice !== null && $minPrice !== '' && is_numeric($minPrice)) {
+        $query->where('price', '>=', (float) $minPrice);
+    }
+    if ($maxPrice !== null && $maxPrice !== '' && is_numeric($maxPrice)) {
+        $query->where('price', '<=', (float) $maxPrice);
+    }
+
+    // ✅ property_type filter (slug)
+    if ($propertyType !== null && is_string($propertyType) && trim($propertyType) !== '') {
+        $query->where('property_type', trim($propertyType));
+    }
+
+    // ✅ search filter: LIKE on community_slug, sub_community_slug, property_slug
+    if (is_array($search) && !empty($search)) {
+        $searchTerms = array_values(array_filter(array_map(function ($s) {
+            return is_string($s) ? trim($s) : null;
+        }, $search), function ($s) {
+            return $s !== null && $s !== '';
+        }));
+
+        if (!empty($searchTerms)) {
+            $query->where(function ($q) use ($searchTerms) {
+                foreach ($searchTerms as $term) {
+                    $like = '%' . $term . '%';
+                    $q->orWhere('community_slug', 'LIKE', $like)
+                      ->orWhere('sub_community_slug', 'LIKE', $like)
+                      ->orWhere('property_slug', 'LIKE', $like);
+                }
+            });
+        }
+    }
+
+    // ✅ bedrooms filter:
+    // - Studio means DB value "Studio"
+    // - "7plus" means bedrooms > 7
+    // - rest numeric exact matches
+    if (is_array($bedrooms) && !empty($bedrooms)) {
+        $hasStudio = false;
+        $exactNums = [];
+        $hasSevenPlus = false;
+
+        foreach ($bedrooms as $b) {
+            if ($b === null) continue;
+
+            if (is_string($b)) {
+                $val = trim($b);
+                if ($val === '') continue;
+
+                if (strcasecmp($val, 'studio') === 0) {
+                    $hasStudio = true;
+                    continue;
+                }
+
+                // support both "7plus" and "7+"
+                if (strcasecmp($val, '7plus') === 0 || preg_match('/^7\s*\+$/', $val)) {
+                    $hasSevenPlus = true;
+                    continue;
+                }
+
+                if (is_numeric($val)) {
+                    $exactNums[] = (int) $val;
+                    continue;
+                }
+            }
+
+            if (is_int($b) || is_float($b) || (is_string($b) && is_numeric($b))) {
+                $exactNums[] = (int) $b;
+            }
+        }
+
+        $exactNums = array_values(array_unique($exactNums));
+
+        $query->where(function ($q) use ($hasStudio, $exactNums, $hasSevenPlus) {
+            if (!empty($exactNums)) {
+                $q->orWhereIn('bedrooms', $exactNums);
+            }
+
+            if ($hasStudio) {
+                $q->orWhere('bedrooms', 'Studio');
+            }
+
+            if ($hasSevenPlus) {
+                $q->orWhere('bedrooms', '>', 7);
+            }
+        });
+    }
+
+    // ✅ bathrooms filter:
+    // - "7plus" means bathrooms > 7
+    // - rest numeric exact matches
+    if (is_array($bathrooms) && !empty($bathrooms)) {
+        $exactNums = [];
+        $hasSevenPlus = false;
+
+        foreach ($bathrooms as $b) {
+            if ($b === null) continue;
+
+            if (is_string($b)) {
+                $val = trim($b);
+                if ($val === '') continue;
+
+                // support both "7plus" and "7+"
+                if (strcasecmp($val, '7plus') === 0 || preg_match('/^7\s*\+$/', $val)) {
+                    $hasSevenPlus = true;
+                    continue;
+                }
+
+                if (is_numeric($val)) {
+                    $exactNums[] = (int) $val;
+                    continue;
+                }
+            }
+
+            if (is_int($b) || is_float($b) || (is_string($b) && is_numeric($b))) {
+                $exactNums[] = (int) $b;
+            }
+        }
+
+        $exactNums = array_values(array_unique($exactNums));
+
+        $query->where(function ($q) use ($exactNums, $hasSevenPlus) {
+            if (!empty($exactNums)) {
+                $q->orWhereIn('bathrooms', $exactNums);
+            }
+            if ($hasSevenPlus) {
+                $q->orWhere('bathrooms', '>', 7);
+            }
+        });
+    }
+
+    // keep existing ordering
+    $query->orderByDesc('id');
+
     $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-    // When no results
     if ($paginator->total() === 0) {
         return response()->json([
             'success' => true,
@@ -142,7 +550,6 @@ class PropertyController extends Controller
         ], 200);
     }
 
-    // get items for the current page and their IDs
     $items = collect($paginator->items());
     $listingIds = $items->pluck('id')->values()->all();
 
@@ -153,13 +560,12 @@ class PropertyController extends Controller
         ->orderBy('sorting')
         ->get();
 
-    // Group images by listing_id
     $imagesByListing = [];
     foreach ($imagesRows as $row) {
         $imagesByListing[$row->listing_id][] = $row->image;
     }
 
-    // Attach images + company_contact to each listing
+    // ✅ keep response keys SAME as your sale response (frontend already expects sale_listings)
     $sale_listings = $items->map(function ($listing) use ($imagesByListing) {
         return [
             'reference'      => $listing->reference,
@@ -173,11 +579,14 @@ class PropertyController extends Controller
             'community'      => $listing->community,
             'sub_community'  => $listing->sub_community,
             'property'       => $listing->property,
+            'community_slug' => $listing->community_slug ?? null,
+            'sub_community_slug' => $listing->sub_community_slug ?? null,
+            'property_slug'  => $listing->property_slug ?? null,
+            'property_type'  => $listing->property_type ?? null,
             'active'         => $listing->active,
             'is_featured'    => $listing->is_featured,
             'images'         => $imagesByListing[$listing->id] ?? [],
 
-            // ✅ company contact inside each listing
             'company_contact' => [
                 'phone'    => env('COMPANY_PHONE'),
                 'whatsapp' => env('COMPANY_WHATSAPP'),
@@ -202,9 +611,9 @@ class PropertyController extends Controller
     ], 200);
 }
 
+
   public function showSaleProperties(Request $request)
 {
-    // ✅ POST body params
     $perPage = (int) $request->input('per_page', 6);
     if ($perPage <= 0) $perPage = 6;
 
@@ -213,6 +622,14 @@ class PropertyController extends Controller
 
     $page = (int) $request->input('page', 1);
     if ($page <= 0) $page = 1;
+
+    // ✅ filters from request
+    $minPrice     = $request->input('min_price', null);
+    $maxPrice     = $request->input('max_price', null);
+    $bedrooms     = $request->input('bedrooms', null);     // array e.g. ["Studio",2,5,7,"7plus"]
+    $bathrooms    = $request->input('bathrooms', null);    // array e.g. ["7plus",5]
+    $search       = $request->input('search', null);       // array of slugs e.g. ["dubai-creek-harbour","azizi-riviera-27"]
+    $propertyType = $request->input('property_type', null); // slug e.g. "apartment"
 
     // query sale listings (property_category = 'Sale') and active
     $query = DB::table('listings')
@@ -228,17 +645,155 @@ class PropertyController extends Controller
             'community',
             'sub_community',
             'property',
+            'community_slug',
+            'sub_community_slug',
+            'property_slug',
+            'property_type',
             'active',
             'is_featured',
         ])
         ->where('property_category', 'Sale')
-        ->where('active', 1)
-        ->orderByDesc('id');
+        ->where('active', 1);
 
-    // paginate using page & perPage
+    // ✅ min/max price filters
+    if ($minPrice !== null && $minPrice !== '' && is_numeric($minPrice)) {
+        $query->where('price', '>=', (float) $minPrice);
+    }
+    if ($maxPrice !== null && $maxPrice !== '' && is_numeric($maxPrice)) {
+        $query->where('price', '<=', (float) $maxPrice);
+    }
+
+    // ✅ property_type filter (slug)
+    if ($propertyType !== null && is_string($propertyType) && trim($propertyType) !== '') {
+        $query->where('property_type', trim($propertyType));
+    }
+
+    // ✅ search filter: LIKE on community_slug, sub_community_slug, property_slug
+    if (is_array($search) && !empty($search)) {
+        $searchTerms = array_values(array_filter(array_map(function ($s) {
+            return is_string($s) ? trim($s) : null;
+        }, $search), function ($s) {
+            return $s !== null && $s !== '';
+        }));
+
+        if (!empty($searchTerms)) {
+            $query->where(function ($q) use ($searchTerms) {
+                foreach ($searchTerms as $term) {
+                    $like = '%' . $term . '%';
+                    $q->orWhere('community_slug', 'LIKE', $like)
+                      ->orWhere('sub_community_slug', 'LIKE', $like)
+                      ->orWhere('property_slug', 'LIKE', $like);
+                }
+            });
+        }
+    }
+
+    // ✅ bedrooms filter:
+    // - Studio means DB value "Studio"
+    // - "7plus" means bedrooms > 7 (no real value in DB)
+    // - rest numeric exact matches
+    if (is_array($bedrooms) && !empty($bedrooms)) {
+        $hasStudio = false;
+        $exactNums = [];
+        $hasSevenPlus = false;
+
+        foreach ($bedrooms as $b) {
+            if ($b === null) continue;
+
+            if (is_string($b)) {
+                $val = trim($b);
+
+                if ($val === '') continue;
+
+                if (strcasecmp($val, 'studio') === 0) {
+                    $hasStudio = true;
+                    continue;
+                }
+
+                // ✅ support both "7plus" and "7+"
+                if (strcasecmp($val, '7plus') === 0 || preg_match('/^7\s*\+$/', $val)) {
+                    $hasSevenPlus = true;
+                    continue;
+                }
+
+                // numeric string
+                if (is_numeric($val)) {
+                    $exactNums[] = (int) $val;
+                    continue;
+                }
+            }
+
+            if (is_int($b) || is_float($b) || (is_string($b) && is_numeric($b))) {
+                $exactNums[] = (int) $b;
+            }
+        }
+
+        $exactNums = array_values(array_unique($exactNums));
+
+        $query->where(function ($q) use ($hasStudio, $exactNums, $hasSevenPlus) {
+            if (!empty($exactNums)) {
+                $q->orWhereIn('bedrooms', $exactNums);
+            }
+
+            if ($hasStudio) {
+                $q->orWhere('bedrooms', 'Studio');
+            }
+
+            if ($hasSevenPlus) {
+                $q->orWhere('bedrooms', '>', 7);
+            }
+        });
+    }
+
+    // ✅ bathrooms filter:
+    // - "7plus" means bathrooms > 7 (no real value in DB)
+    // - rest numeric exact matches
+    if (is_array($bathrooms) && !empty($bathrooms)) {
+        $exactNums = [];
+        $hasSevenPlus = false;
+
+        foreach ($bathrooms as $b) {
+            if ($b === null) continue;
+
+            if (is_string($b)) {
+                $val = trim($b);
+
+                if ($val === '') continue;
+
+                // ✅ support both "7plus" and "7+"
+                if (strcasecmp($val, '7plus') === 0 || preg_match('/^7\s*\+$/', $val)) {
+                    $hasSevenPlus = true;
+                    continue;
+                }
+
+                if (is_numeric($val)) {
+                    $exactNums[] = (int) $val;
+                    continue;
+                }
+            }
+
+            if (is_int($b) || is_float($b) || (is_string($b) && is_numeric($b))) {
+                $exactNums[] = (int) $b;
+            }
+        }
+
+        $exactNums = array_values(array_unique($exactNums));
+
+        $query->where(function ($q) use ($exactNums, $hasSevenPlus) {
+            if (!empty($exactNums)) {
+                $q->orWhereIn('bathrooms', $exactNums);
+            }
+            if ($hasSevenPlus) {
+                $q->orWhere('bathrooms', '>', 7);
+            }
+        });
+    }
+
+    // keep existing ordering
+    $query->orderByDesc('id');
+
     $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-    // When no results
     if ($paginator->total() === 0) {
         return response()->json([
             'success' => true,
@@ -255,7 +810,6 @@ class PropertyController extends Controller
         ], 200);
     }
 
-    // get items for the current page and their IDs
     $items = collect($paginator->items());
     $listingIds = $items->pluck('id')->values()->all();
 
@@ -266,13 +820,11 @@ class PropertyController extends Controller
         ->orderBy('sorting')
         ->get();
 
-    // Group images by listing_id
     $imagesByListing = [];
     foreach ($imagesRows as $row) {
         $imagesByListing[$row->listing_id][] = $row->image;
     }
 
-    // Attach images + company_contact to each listing
     $sale_listings = $items->map(function ($listing) use ($imagesByListing) {
         return [
             'reference'      => $listing->reference,
@@ -286,11 +838,14 @@ class PropertyController extends Controller
             'community'      => $listing->community,
             'sub_community'  => $listing->sub_community,
             'property'       => $listing->property,
+            'community_slug' => $listing->community_slug ?? null,
+            'sub_community_slug' => $listing->sub_community_slug ?? null,
+            'property_slug'  => $listing->property_slug ?? null,
+            'property_type'  => $listing->property_type ?? null,
             'active'         => $listing->active,
             'is_featured'    => $listing->is_featured,
             'images'         => $imagesByListing[$listing->id] ?? [],
 
-            // ✅ company contact inside each listing
             'company_contact' => [
                 'phone'    => env('COMPANY_PHONE'),
                 'whatsapp' => env('COMPANY_WHATSAPP'),
@@ -314,9 +869,6 @@ class PropertyController extends Controller
         ],
     ], 200);
 }
-
-
-
 
 
    public function showFeaturedProperties(Request $request)

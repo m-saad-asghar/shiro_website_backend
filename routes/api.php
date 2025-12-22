@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Auth\ResetPasswordController;
 use App\Http\Controllers\Api\Auth\UserVerifyEmailController;
 use App\Http\Controllers\Api\Property\AgentDeveloperController;
 use App\Http\Controllers\Api\Property\PropertyController;
+use App\Http\Controllers\Api\Property\ListingController;
 use App\Http\Controllers\Api\Property\ServiceController;
 use App\Http\Controllers\Api\Property\TypeController;
 use App\Http\Controllers\Api\StaticPage\StaticController;
@@ -54,6 +55,7 @@ Route::get('/download-brochure', function () {
 Route::get('/listing_details/{reference}', [PropertyController::class, 'listingDetails']);
 Route::get('/show_featured_properties', [PropertyController::class, 'showFeaturedProperties']);
 Route::post('/show_sale_properties', [PropertyController::class, 'showSaleProperties']);
+Route::post('/show_offplan_properties', [PropertyController::class, 'showOffplanProperties']);
 Route::post('/show_rent_properties', [PropertyController::class, 'showRentProperties']);
 Route::get('/properties/filters', [PropertyController::class, 'getFilterOptions']);
 Route::post('/properties/search', [PropertyController::class, 'searchProperty']);
@@ -61,6 +63,11 @@ Route::post('/properties/search-by-location', [PropertyController::class, 'searc
 Route::get('/properties', [PropertyController::class, 'allProperties']);
 Route::get('/property/show', [PropertyController::class, 'show']);
 Route::get('/property/slug/{slug}', [PropertyController::class, 'showBySlug']);
+Route::post('/get_listing_options', [ListingController::class, 'showListingsOptions']);
+Route::get('/fetch_property_types', [PropertyController::class, 'fetchPropertyTypes']);
+// routes/api.php
+Route::post('/resolve_search_slugs', [ListingController::class, 'resolveSearchSlugs']);
+
 
 Route::post('/contact-agent', [UserController::class, 'submitContactAgentForm']);
 

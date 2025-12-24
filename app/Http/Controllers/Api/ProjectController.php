@@ -23,6 +23,7 @@ class ProjectController extends Controller
             'projects.starting_price as starting_price',
             'projects.handover as handover',
             'projects.payment_plan as payment_plan',
+            'projects.payment_plan_description as payment_plan_description',
             // 'communities.name as community_name',
             'developers.name as developer_name',
         )
@@ -57,13 +58,14 @@ class ProjectController extends Controller
     $paymentPlansByProject = DB::table('paymentplan_projects')
         ->whereIn('project_id', $projectIds)
         ->where('active', 1)
-        ->select('project_id', 'title', 'value')
+        ->select('project_id', 'title', 'value', 'sub_title')
         ->orderBy('id', 'asc')
         ->get()
         ->groupBy('project_id')
         ->map(fn ($items) => $items->map(fn ($p) => [
             'title' => $p->title,
             'value' => $p->value,
+            'sub_title' => $p->sub_title,
         ])->values());
 
     /** ✅ FAQs */
@@ -154,6 +156,7 @@ $locationOfProject = DB::table('project_locations')
             'project_starting_price' => $row->starting_price,
             'project_handover' => $row->handover,
             'project_payment_plan' => $row->payment_plan,
+            'project_payment_plan_description' => $row->payment_plan_description,
             // 'community_name' => $row->community_name,
             'developer_name' => $row->developer_name,
 

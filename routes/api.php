@@ -15,6 +15,9 @@ use App\Http\Controllers\Api\User\UserController;
 use App\Http\Controllers\Api\User\UserPaymentController;
 use App\Http\Controllers\Api\Property\PropertyLeadController;
 use App\Http\Controllers\Api\DeveloperController;
+use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\IntegrationController;
+use App\Http\Controllers\Api\ListingSyncController;
 use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\ProjectController;
 use Illuminate\Http\Request;
@@ -43,14 +46,18 @@ Route::prefix('static')->controller(StaticController::class)->group(function () 
 });
 
 Route::post('/contact/submit', [UserController::class, 'submitContactForm']);
+Route::post('/form_submission', [UserController::class, 'formSubmission']);
+Route::post('/form_submission_get_a_call', [UserController::class, 'formSubmissionGetACall']);
 Route::post('/subscribe', [UserController::class, 'store']);
 
-Route::get('/download-brochure', function () {
-    return response()->download(
-        storage_path('app/public/projects/Shiro Estate Creek Bay Brochure.pdf'),
-        'Shiro Estate Creek Bay Brochure.pdf'
-    );
-});
+Route::get('/download-brochure', [ProjectController::class, 'downloadBrochure']);
+
+// Route::get('/download-brochure', function () {
+//     return response()->download(
+//         storage_path('app/public/projects/Shiro Estate Creek Bay Brochure.pdf'),
+//         'Shiro Estate Creek Bay Brochure.pdf'
+//     );
+// });
 
 Route::get('/listing_details/{reference}', [PropertyController::class, 'listingDetails']);
 Route::get('/show_featured_properties', [PropertyController::class, 'showFeaturedProperties']);
@@ -83,6 +90,25 @@ Route::get('show/developer', [AgentDeveloperController::class, 'show']);
 Route::get('/services', [ServiceController::class, 'allServices']);
 Route::get('show/services', [ServiceController::class, 'showService']);
 Route::get('/types', [TypeController::class, 'allTypes']);
+
+Route::get('/fetch_employees', [EmployeeController::class, 'show']);
+Route::post('/fetch_message_from_founder', [EmployeeController::class, 'messageFromFounder']);
+Route::get('/fetch_about_us_content', [EmployeeController::class, 'fetchAboutUsContent']);
+
+// Syncing Routes
+
+Route::get('/sync-property-types', [IntegrationController::class, 'syncPropertyTypes']);
+Route::get('/sync-communities', [IntegrationController::class, 'syncCommunities']);
+Route::get('/sync-sub-communities', [IntegrationController::class, 'syncSubCommunities']);
+Route::get('/sync-listing-developers', [IntegrationController::class, 'syncListingDevelopers']);
+Route::get('/sync-locations', [IntegrationController::class, 'syncLocations']);
+Route::get('/sync-cities', [IntegrationController::class, 'syncCities']);
+Route::get('/sync-agents', [IntegrationController::class, 'syncAgents']);
+Route::get('/sync-private-amenities', [IntegrationController::class, 'syncPrivateAmenities']);
+Route::get('/sync-commercial-amenities', [IntegrationController::class, 'syncCommercialAmenities']);
+Route::get('/sync-properties', [IntegrationController::class, 'syncProperties']);
+Route::get('/sync/listings', [ListingSyncController::class, 'sync']);
+
 
 Route::prefix('auth')->group(function () {
     Route::post('login', [AuthUserController::class, 'login']);

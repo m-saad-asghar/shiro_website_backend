@@ -177,7 +177,41 @@ $locationOfProject = DB::table('project_locations')
     ]);
 }
 
+public function downloadBrochure(Request $request)
+{
+    // Validate GET query param
+    $request->validate([
+        'project_id' => 'required|integer'
+    ]);
 
+    $projectId = (int) $request->query('project_id');
+
+    // Fetch project
+    $project = DB::table('projects')
+        ->select('brochure')
+        ->where('id', $projectId)
+        ->first();
+
+    if (!$project || empty($project->brochure)) {
+        return response()->json([
+            'status' => 0,
+            'message' => 'Brochure not found.'
+        ], 404);
+    }
+
+    // Secure filename
+    $fileName = basename($project->brochure);
+    $filePath = storage_path('app/public/projects/' . $fileName);
+
+    if (!file_exists($filePath)) {
+        return response()->json([
+            'status' => 0,
+            'message' => 'Brochure file missing on server.'
+        ], 404);
+    }
+
+    return response()->download($filePath, $fileName);
+}
 
 
 }

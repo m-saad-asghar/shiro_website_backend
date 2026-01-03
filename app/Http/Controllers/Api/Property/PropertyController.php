@@ -16,7 +16,7 @@ class PropertyController extends Controller
      public function fetchPropertyTypes(Request $request)
     {
         $types = DB::table('property_types')
-            ->select(['id', 'name', 'slug'])
+            ->select(['id', 'text as name', 'slug', 'code'])
             ->whereNull('deleted_at') // important since your table has soft deletes
             ->orderBy('id', 'asc')
             ->get();
@@ -281,20 +281,21 @@ class PropertyController extends Controller
 
   public function listingDetails($reference)
 {
-    // 1) Listing + Employee join (only required employee fields)
+    // 1) Listing + Agent join (only required agent fields)
     $listing = DB::table('listings')
-        ->leftJoin('employees', 'employees.id', '=', 'listings.agent_id')
+        ->leftJoin('agents', 'agents.id', '=', 'listings.agent_id')
         ->where('listings.reference', $reference)
         ->select(
             'listings.*',
-            'employees.name as employee_name',
-            'employees.orn as employee_orn',
-            'employees.slug as employee_slug',
-            'employees.position as employee_position',
-            'employees.profile_picture as employee_profile_picture',
-            'employees.email as employee_email',
-            'employees.phone as employee_phone',
-            'employees.whatsapp as employee_whatsapp'
+            'agents.name as employee_name',
+            // 'agents.orn as employee_orn',
+            'agents.slug as employee_slug',
+            // 'agents.position as employee_position',
+            'agents.image as employee_profile_picture',
+            'agents.orn as employee_orn',
+            'agents.email as employee_email',
+            'agents.phone as employee_phone',
+            // 'agents.whatsapp as employee_whatsapp'
         )
         ->first();
 
@@ -313,10 +314,16 @@ class PropertyController extends Controller
         ->values(); // ensure clean array indexes
 
     // 3) Amenities (ONLY amenity names)
-    $amenities = DB::table('amenity_listings')
-        ->join('amenities', 'amenities.id', '=', 'amenity_listings.amenity_id')
-        ->where('amenity_listings.listing_id', $listing->id)
-        ->pluck('amenities.name')
+    $private_amenities = DB::table('private_amenity_listings')
+        ->join('private_amenities', 'private_amenities.code', '=', 'private_amenity_listings.amenity_code')
+        ->where('private_amenity_listings.listing_reference', $listing->reference)
+        ->pluck('private_amenities.name')
+        ->values();
+
+        $commercial_amenities = DB::table('commercial_amenity_listings')
+        ->join('commercial_amenities', 'commercial_amenities.code', '=', 'commercial_amenity_listings.amenity_code')
+        ->where('commercial_amenity_listings.listing_reference', $listing->reference)
+        ->pluck('commercial_amenities.name')
         ->values();
 
     // 4) Build employee object (clean response)
@@ -324,11 +331,11 @@ class PropertyController extends Controller
         'name'            => $listing->employee_name,
         'slug'            => $listing->employee_slug,
         'orn'             => $listing->employee_orn,
-        'position'        => $listing->employee_position,
+        // 'position'        => $listing->employee_position,
         'profile_picture' => $listing->employee_profile_picture,
         'email'           => $listing->employee_email,
         'phone'           => $listing->employee_phone,
-        'whatsapp'        => $listing->employee_whatsapp,
+        // 'whatsapp'        => $listing->employee_whatsapp,
     ];
 
     // Optional: remove join fields from listing object (so listing stays clean)
@@ -348,7 +355,8 @@ class PropertyController extends Controller
             'listing'   => $listing,
             'employee'  => $employee,
             'images'    => $images,
-            'amenities' => $amenities,
+            'private_amenities' => $private_amenities,
+            'commercial_amenities' => $commercial_amenities,
         ],
     ]);
 }
@@ -883,6 +891,7 @@ class PropertyController extends Controller
     $listings = DB::table('listings')
         ->select([
             'id',
+            'unit_id',
             'reference',
             'bedrooms',
             'bathrooms',
@@ -909,12 +918,13 @@ class PropertyController extends Controller
         ], 200);
     }
 
-    $listingIds = $listings->pluck('id')->values()->all();
+    $listingIds = $listings->pluck('unit_id')->values()->all();
 
     $imagesRows = DB::table('listing_images')
         ->select(['listing_id', 'image', 'sorting'])
         ->whereIn('listing_id', $listingIds)
-        ->orderBy('listing_id')
+        ->where('active', 1)
+        // ->orderBy('listing_id')
         ->orderBy('sorting')
         ->get();
 

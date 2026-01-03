@@ -18,6 +18,7 @@ use App\Models\Subscribe;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -150,6 +151,85 @@ class UserController extends Controller
             return $this->handleException($e);
         }
     }
+
+    public function formSubmissionGetACall(Request $request)
+    {
+    $validator = Validator::make($request->all(), [
+        'name'        => 'required|string|max:255',
+        'phone'       => 'required|string|max:255',
+        'target_page' => 'nullable|string',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 0,
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
+    try {
+        DB::table('contact_forms_call_back')->insert([
+            'name'        => $request->name,
+            'phone'       => $request->phone,
+            'target_page' => $request->target_page,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        return response()->json([
+            'status'  => 1,
+            'message' => 'Form submitted successfully',
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status'  => 0,
+            'message' => 'Something went wrong',
+        ], 500);
+    }
+}
+
+
+   public function formSubmission(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'name'        => 'required|string|max:255',
+        'email'       => 'required|email|max:255',
+        'phone'       => 'required|string|max:255',
+        'language'    => 'required|string|max:255',
+        'message'     => 'nullable|string',
+        'target_page' => 'nullable|string',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 0,
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
+    try {
+        DB::table('contact_forms')->insert([
+            'name'        => $request->name,
+            'email'       => $request->email,
+            'phone'       => $request->phone,
+            'language'    => $request->language,
+            'message'     => $request->message,
+            'target_page' => $request->target_page,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        return response()->json([
+            'status'  => 1,
+            'message' => 'Form submitted successfully',
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status'  => 0,
+            'message' => 'Something went wrong',
+        ], 500);
+    }
+}
 
     public function store(Request $request)
     {

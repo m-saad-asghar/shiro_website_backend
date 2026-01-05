@@ -67,7 +67,8 @@ class PropertyController extends Controller
             'active',
             'is_featured',
         ])
-        ->where('property_category', 'Offplan')
+        ->where('project_status', 'LIKE', '%off plan%')
+        // ->where('property_category', 'Offplan')
         ->where('active', 1);
 
     // ✅ min/max price filters
@@ -80,7 +81,7 @@ class PropertyController extends Controller
 
     // ✅ property_type filter (slug)
     if ($propertyType !== null && is_string($propertyType) && trim($propertyType) !== '') {
-        $query->where('property_type', trim($propertyType));
+        $query->where('property_type_code', trim($propertyType));
     }
 
     // ✅ search filter: LIKE on community_slug, sub_community_slug, property_slug
@@ -416,7 +417,7 @@ class PropertyController extends Controller
 
     // ✅ property_type filter (slug)
     if ($propertyType !== null && is_string($propertyType) && trim($propertyType) !== '') {
-        $query->where('property_type', trim($propertyType));
+        $query->where('property_type_code', trim($propertyType));
     }
 
     // ✅ search filter: LIKE on community_slug, sub_community_slug, property_slug
@@ -673,7 +674,7 @@ class PropertyController extends Controller
 
     // ✅ property_type filter (slug)
     if ($propertyType !== null && is_string($propertyType) && trim($propertyType) !== '') {
-        $query->where('property_type', trim($propertyType));
+        $query->where('property_type_code', trim($propertyType));
     }
 
     // ✅ search filter: LIKE on community_slug, sub_community_slug, property_slug

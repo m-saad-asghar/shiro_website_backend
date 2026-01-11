@@ -49,6 +49,16 @@ class EmployeeController extends Controller
             ->select('id', 'name', 'position', 'slug', 'profile_picture')
             ->where('active', 1)
             ->where('in_contact_page', 1)
+            ->where('is_agent', 0)
+            ->orderByRaw('sorting IS NULL, sorting ASC')
+            ->orderBy('id', 'asc')
+            ->get();
+        
+        $agents = DB::table('employees')
+            ->select('id', 'name', 'position', 'slug', 'profile_picture')
+            ->where('active', 1)
+            ->where('in_contact_page', 1)
+            ->where('is_agent', 1)
             ->orderByRaw('sorting IS NULL, sorting ASC')
             ->orderBy('id', 'asc')
             ->get();
@@ -56,6 +66,7 @@ class EmployeeController extends Controller
         return response()->json([
             'status' => 1,
             'data' => $employees,
+            'agents' => $agents,
         ]);
     }
 }

@@ -61,6 +61,10 @@ Route::get('/download-brochure', [ProjectController::class, 'downloadBrochure'])
 
 Route::get('/listing_details/{reference}', [PropertyController::class, 'listingDetails']);
 Route::get('/show_featured_properties', [PropertyController::class, 'showFeaturedProperties']);
+Route::post(
+    '/show_featured_properties_with_type',
+    [PropertyController::class, 'showFeaturedPropertiesWithType']
+);
 Route::post('/show_sale_properties', [PropertyController::class, 'showSaleProperties']);
 Route::post('/show_offplan_properties', [PropertyController::class, 'showOffplanProperties']);
 Route::post('/show_rent_properties', [PropertyController::class, 'showRentProperties']);

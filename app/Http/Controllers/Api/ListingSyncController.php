@@ -32,13 +32,13 @@ class ListingSyncController extends Controller
         $listRes = Http::timeout(60)
             ->acceptJson()
             ->withHeaders(['User-Agent' => 'Mozilla/5.0 (ListingSync Laravel)'])
-           ->get($listUrl, [
-        'key' => $this->key,
-        'order' => [
-            ['column' => 0, 'dir' => 'asc'],
-        ],
-        // 'page' => 1,
-    ]);
+            ->get($listUrl, [
+                'key' => $this->key,
+                'order' => [
+                    ['column' => 0, 'dir' => 'asc'],
+                ],
+                // 'page' => 1,
+            ]);
 
         if (!$listRes->successful()) {
             return response()->json([
@@ -218,7 +218,7 @@ class ListingSyncController extends Controller
                         'description' => $description,
 
                         'active' => $active,
-                        'is_featured' => $isFeatured,
+                        // 'is_featured' => $isFeatured,
 
                         'furnishing' => $furnishing,
                         'latitude' => $latitude,
@@ -258,6 +258,12 @@ class ListingSyncController extends Controller
                     $privateCodes = $this->splitAmenityCodes($property['private_amenities'] ?? '');
                     $commercialCodes = $this->splitAmenityCodes($property['commercial_amenities'] ?? '');
 
+                    // ✅ NEW: SOFT SYNC MASTER AMENITIES (deactivate missing, activate existing)
+                    // Change table/column names if yours differ.
+                    $this->syncAmenityMasterByCodes('private_amenities', 'code', $privateCodes);
+                    $this->syncAmenityMasterByCodes('commercial_amenities', 'code', $commercialCodes);
+
+                    // keep pivot sync as-is (relations for this listing)
                     $this->syncAmenitiesPivotByCode('private_amenity_listings', $reference, $privateCodes);
                     $this->syncAmenitiesPivotByCode('commercial_amenity_listings', $reference, $commercialCodes);
                 });
@@ -304,7 +310,20 @@ class ListingSyncController extends Controller
         if ($name === null) return ['id' => null, 'name' => null];
 
         $row = DB::table($table)->where('name', $name)->first();
-        if ($row) return (array)$row;
+
+        // ✅ if exists but inactive, activate it
+        if ($row) {
+            if (property_exists($row, 'active') && (int)$row->active === 0) {
+                DB::table($table)->where('id', $row->id)->update([
+                    'active' => 1,
+                    'updated_at' => now(),
+                ]);
+
+                $row = DB::table($table)->where('id', $row->id)->first();
+            }
+
+            return (array)$row;
+        }
 
         $id = DB::table($table)->insertGetId([
             'name' => $name,
@@ -316,6 +335,53 @@ class ListingSyncController extends Controller
 
         $created = DB::table($table)->where('id', $id)->first();
         return $created ? (array)$created : ['id' => $id, 'name' => $name];
+    }
+
+    // ✅ NEW: Soft-sync amenities master table by codes
+    // Behavior:
+    // - code not in API => active = 0 (no delete)
+    // - code in API & exists inactive => active = 1
+    // - code in API & missing => insert active = 1
+    private function syncAmenityMasterByCodes(string $table, string $codeColumn, array $apiCodes): void
+    {
+        $apiCodes = array_values(array_unique(array_filter(array_map('trim', $apiCodes))));
+
+        // If API returns nothing, don't deactivate everything by mistake
+        if (count($apiCodes) === 0) {
+            return;
+        }
+
+        // deactivate missing
+        DB::table($table)
+            ->whereNotIn($codeColumn, $apiCodes)
+            ->where('active', 1)
+            ->update([
+                'active' => 0,
+                'updated_at' => now(),
+            ]);
+
+        // activate/create present
+        foreach ($apiCodes as $code) {
+            $row = DB::table($table)->where($codeColumn, $code)->first();
+
+            if ($row) {
+                if (property_exists($row, 'active') && (int)$row->active === 0) {
+                    DB::table($table)->where('id', $row->id)->update([
+                        'active' => 1,
+                        'updated_at' => now(),
+                    ]);
+                }
+            } else {
+                DB::table($table)->insert([
+                    $codeColumn => $code,
+                    'name' => $code, // fallback if you don't have name from API here
+                    'slug' => Str::slug($code),
+                    'active' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
     }
 
     private function firstOrCreateAgent(?string $name, ?string $email, ?string $phone, $listingAgentId): array
@@ -388,8 +454,7 @@ class ListingSyncController extends Controller
         return array_values(array_filter(array_map('trim', explode(',', $codes))));
     }
 
-    // ✅ DB STRUCTURE (from your screenshot):
-    // private_amenity_listings: id, code, listing_reference, active, created_at, updated_at
+    // ✅ pivot sync stays delete+insert for listing relations (this is OK)
     private function syncAmenitiesPivotByCode(string $pivotTable, string $listingReference, array $codes): void
     {
         DB::table($pivotTable)->where('listing_reference', $listingReference)->delete();

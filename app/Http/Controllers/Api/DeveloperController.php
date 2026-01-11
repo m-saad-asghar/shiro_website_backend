@@ -89,7 +89,10 @@ class DeveloperController extends Controller
             'projects.name as project_name',
             'projects.slug as project_slug',
             'projects.description as project_description',
-            'projects.main_image as project_main_image'
+            'projects.main_image as project_main_image',
+            'projects.community_name as project_community_name',
+            'projects.starting_price as project_starting_price',
+            'projects.handover as project_handover',
         )
         ->get();
 
@@ -122,6 +125,9 @@ class DeveloperController extends Controller
             'slug'               => $row->project_slug,
             'description'        => $row->project_description,
             'project_main_image' => $row->project_main_image,
+            'project_community_name' => $row->project_community_name,
+            'project_starting_price' => $row->project_starting_price,
+            'project_handover'   => $row->project_handover,
             // 'community_id'       => $row->community_id,
             // 'community_name'     => $row->community_name,
             // 'community_slug'     => $row->community_slug,

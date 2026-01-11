@@ -879,14 +879,171 @@ class PropertyController extends Controller
     ], 200);
 }
 
+public function showFeaturedPropertiesWithType(Request $request)
+{
+    // ✅ POST params
+    $reference         = trim((string) $request->input('reference', ''));
+    $propertyCategory  = trim((string) $request->input('property_category', ''));
+    $projectStatus     = trim((string) $request->input('project_status', ''));
+
+    if ($reference === '') {
+        return response()->json([
+            'success' => false,
+            'message' => 'reference is required',
+            'data'    => [],
+        ], 422);
+    }
+
+    if ($propertyCategory === '') {
+        return response()->json([
+            'success' => false,
+            'message' => 'property_category is required',
+            'data'    => [],
+        ], 422);
+    }
+
+    // ✅ hard cap 4 (same behavior)
+    $limit = 4;
+
+    // 1) Find listing by reference + get property_type
+    $baseListing = DB::table('listings')
+        ->select(['reference', 'property_type'])
+        ->where('reference', $reference)
+        ->first();
+
+    if (!$baseListing) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Listing not found for given reference',
+            'data'    => [],
+        ], 404);
+    }
+
+    $propertyType = trim((string) ($baseListing->property_type ?? ''));
+
+    if ($propertyType === '') {
+        return response()->json([
+            'success' => false,
+            'message' => 'property_type not found for this listing',
+            'data'    => [],
+        ], 422);
+    }
+
+    // 2) Build allowed property_type rules
+    $typeLower = mb_strtolower($propertyType);
+
+    if ($typeLower === 'villa' || $typeLower === 'townhouse') {
+        $allowedTypes = ['Villa', 'Townhouse'];
+    } elseif ($typeLower === 'apartment' || $typeLower === 'hotel apartment' || $typeLower === 'hotel_apartment') {
+        $allowedTypes = ['Apartment', 'Hotel Apartment', 'Hotel_Apartment'];
+    } else {
+        $allowedTypes = [$propertyType];
+    }
+
+    // 3) Build query
+    $query = DB::table('listings')
+        ->select([
+            'id',
+            'unit_id',
+            'reference',
+            'bedrooms',
+            'bathrooms',
+            'price',
+            'area',
+            'title',
+            'community',
+            'sub_community',
+            'property',
+            'active',
+            'is_featured',
+            'property_type',
+            'property_category',
+            'project_status',
+        ])
+        ->where('active', 1)
+        ->whereIn('property_type', $allowedTypes)
+        ->where('property_category', $propertyCategory)
+        ->where('reference', '!=', $reference);
+
+    // 4) Off-plan matching rule
+    // If incoming project_status contains "off plan" (any casing),
+    // then only return records whose project_status also contains "off plan".
+    if (stripos($projectStatus, 'off plan') !== false || stripos($projectStatus, 'off-plan') !== false) {
+        $query->where(function ($q) {
+            $q->whereRaw('LOWER(project_status) LIKE ?', ['%off plan%'])
+              ->orWhereRaw('LOWER(project_status) LIKE ?', ['%off-plan%']);
+        });
+    }
+
+    $listings = $query
+        ->orderByDesc('id')
+        ->limit($limit)
+        ->get();
+
+    if ($listings->isEmpty()) {
+        return response()->json([
+            'success' => true,
+            'count'   => 0,
+            'data'    => ["featured_listings" => []],
+        ], 200);
+    }
+
+    // ✅ images: listing_images.listing_id = listings.id
+    $listingIds = $listings->pluck('id')->values()->all();
+
+    $imagesRows = DB::table('listing_images')
+        ->select(['listing_id', 'image', 'sorting'])
+        ->whereIn('listing_id', $listingIds)
+        ->where('active', 1)
+        ->orderBy('sorting')
+        ->get();
+
+    $imagesByListing = [];
+    foreach ($imagesRows as $row) {
+        $imagesByListing[$row->listing_id][] = $row->image;
+    }
+
+    $featured_listings = $listings->map(function ($listing) use ($imagesByListing) {
+        return [
+            'reference'       => $listing->reference,
+            'id'              => $listing->id,
+            'bedrooms'        => $listing->bedrooms,
+            'bathrooms'       => $listing->bathrooms,
+            'price'           => $listing->price,
+            'area'            => $listing->area,
+            'title'           => $listing->title,
+            'community'       => $listing->community,
+            'sub_community'   => $listing->sub_community,
+            'property'        => $listing->property,
+            'active'          => $listing->active,
+            'is_featured'     => $listing->is_featured,
+            'property_type'   => $listing->property_type,
+            'property_category' => $listing->property_category,
+            'project_status'  => $listing->project_status,
+            'images'          => $imagesByListing[$listing->id] ?? [],
+
+            'company_contact' => [
+                'phone'    => env('COMPANY_PHONE'),
+                'whatsapp' => env('COMPANY_WHATSAPP'),
+                'email'    => env('COMPANY_EMAIL'),
+            ],
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'data'    => ["featured_listings" => $featured_listings],
+    ], 200);
+}
+
 
    public function showFeaturedProperties(Request $request)
 {
     // ✅ limit handling (min any, max capped)
-    $limit = (int) $request->query('limit', 6);
-    if ($limit <= 0) $limit = 6;
+    $limit = (int) $request->query('limit', 4);
+    if ($limit <= 0) $limit = 4;
 
-    $MAX_LIMIT = 6;
+    $MAX_LIMIT = 4;
     if ($limit > $MAX_LIMIT) $limit = $MAX_LIMIT;
 
     $listings = DB::table('listings')

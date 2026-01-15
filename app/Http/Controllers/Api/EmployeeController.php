@@ -12,7 +12,7 @@ class EmployeeController extends Controller
     public function fetchAboutUsContent()
     {
         $data = DB::table('about_us_content')
-            ->select('title', 'description')
+            ->select('heading', 'title', 'description')
             ->get();
 
         return response()->json([
@@ -55,7 +55,7 @@ class EmployeeController extends Controller
             ->get();
         
         $agents = DB::table('employees')
-            ->select('id', 'name', 'position', 'slug', 'profile_picture')
+            ->select('id', 'name', 'position', 'slug', 'profile_picture', 'phone', 'whatsapp', 'email')
             ->where('active', 1)
             ->where('in_contact_page', 1)
             ->where('is_agent', 1)

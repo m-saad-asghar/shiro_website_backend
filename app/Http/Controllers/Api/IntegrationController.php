@@ -10,8 +10,11 @@ use Illuminate\Support\Str;
 class IntegrationController extends Controller
 {
     private string $key = 'ShacRa8112aOa8648Ft';
- public function syncPropertyTypes()
+
+    public function syncPropertyTypes()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-property-type?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -32,108 +35,172 @@ class IntegrationController extends Controller
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    // collect API codes to detect removals
-    $apiCodes = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
         $text = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
-        $code = trim(str_replace(["\r", "\n", ' '], '', $row['id'] ?? ''));
 
-        if (!$text || !$code) continue;
-
-        $apiCodes[] = $code;
-
-        $slug = \Illuminate\Support\Str::slug($text);
-
-        $existing = DB::table('property_types')
-            ->select('id', 'text', 'slug', 'status')
-            ->where('code', $code)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active/status = 1
-        if (!$existing) {
-            DB::table('property_types')->insert([
-                'text'       => $text,
-                'slug'       => $slug,
-                'code'       => $code,
-                'status'     => 1, // active
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $inserted++;
+        if ($text === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate it (status = 1)
-        if ((int)($existing->status ?? 0) === 0) {
-            DB::table('property_types')
-                ->where('code', $code)
-                ->update([
-                    'status'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ text is unique identity (if exists, skip)
+        $exists = DB::table('property_types')
+            ->where('text', $text)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update fields if changed (text/slug)
-        $needsUpdate = (
-            ($existing->text ?? '') !== $text ||
-            ($existing->slug ?? '') !== $slug
-        );
+        $slug = \Illuminate\Support\Str::slug($text);
 
-        if ($needsUpdate) {
-            DB::table('property_types')
-                ->where('code', $code)
-                ->update([
-                    'text'       => $text,
-                    'slug'       => $slug,
-                    'updated_at' => now(),
-                ]);
+        // ✅ Insert ONLY text, slug, status = 1 (touch nothing else)
+        DB::table('property_types')->insert([
+            'text'   => $text,
+            'slug'   => $slug,
+            'status' => 1,
+        ]);
 
-            $updated++;
-        } else {
-            // count as skipped only if we didn't just activate it
-            if ((int)($existing->status ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (status = 0)
-    $apiCodes = array_values(array_unique($apiCodes));
-
-    // Safety: if API returned nothing, don't deactivate everything
-    if (count($apiCodes) > 0) {
-        $deactivated = DB::table('property_types')
-            ->whereNotIn('code', $apiCodes)
-            ->where('status', '!=', 0)
-            ->update([
-                'status'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
 
+//  public function syncPropertyTypes()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-property-type?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     // collect API codes to detect removals
+//     $apiCodes = [];
+
+//     foreach ($results as $row) {
+//         $text = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+//         $code = trim(str_replace(["\r", "\n", ' '], '', $row['id'] ?? ''));
+
+//         if (!$text || !$code) continue;
+
+//         $apiCodes[] = $code;
+
+//         $slug = \Illuminate\Support\Str::slug($text);
+
+//         $existing = DB::table('property_types')
+//             ->select('id', 'text', 'slug', 'status')
+//             ->where('code', $code)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active/status = 1
+//         if (!$existing) {
+//             DB::table('property_types')->insert([
+//                 'text'       => $text,
+//                 'slug'       => $slug,
+//                 'code'       => $code,
+//                 'status'     => 1, // active
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate it (status = 1)
+//         if ((int)($existing->status ?? 0) === 0) {
+//             DB::table('property_types')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'status'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update fields if changed (text/slug)
+//         $needsUpdate = (
+//             ($existing->text ?? '') !== $text ||
+//             ($existing->slug ?? '') !== $slug
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('property_types')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'text'       => $text,
+//                     'slug'       => $slug,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $updated++;
+//         } else {
+//             // count as skipped only if we didn't just activate it
+//             if ((int)($existing->status ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (status = 0)
+//     $apiCodes = array_values(array_unique($apiCodes));
+
+//     // Safety: if API returned nothing, don't deactivate everything
+//     if (count($apiCodes) > 0) {
+//         $deactivated = DB::table('property_types')
+//             ->whereNotIn('code', $apiCodes)
+//             ->where('status', '!=', 0)
+//             ->update([
+//                 'status'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
 public function syncCommunities()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
+
     $url = 'https://youtupia.net/shiro/api/get-communities?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -154,111 +221,297 @@ public function syncCommunities()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    // collect API ids to detect removals
-    $apiIds = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
-        $id   = $row['id'] ?? null;
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
 
-        if (!$id || !$name) continue;
-
-        $id = (int) $id;
-        $apiIds[] = $id;
-
-        // slug: keep bracket words, remove only bracket characters
-        $nameForSlug = str_replace(['(', ')'], '', $name);
-        $slug = \Illuminate\Support\Str::slug($nameForSlug);
-
-        $existing = DB::table('communities')
-            ->select('id', 'name', 'slug', 'active')
-            ->where('id', $id)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('communities')->insert([
-                'id'         => $id,
-                'name'       => $name,
-                'slug'       => $slug,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('communities')
-                ->where('id', $id)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('communities')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name/slug changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name ||
-            ($existing->slug ?? '') !== $slug
-        );
+        // ✅ slugify from name (removing only bracket characters, keeping words)
+        $nameForSlug = str_replace(['(', ')'], '', $name);
+        $slug = \Illuminate\Support\Str::slug($nameForSlug);
 
-        if ($needsUpdate) {
-            DB::table('communities')
-                ->where('id', $id)
-                ->update([
-                    'name'       => $name,
-                    'slug'       => $slug,
-                    'updated_at' => now(),
-                ]);
+        // ✅ Insert ONLY name, slug, active = 1 (touch nothing else)
+        DB::table('communities')->insert([
+            'name'   => $name,
+            'slug'   => $slug,
+            'active' => 1,
+        ]);
 
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiIds = array_values(array_unique($apiIds));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiIds) > 0) {
-        $deactivated = DB::table('communities')
-            ->whereNotIn('id', $apiIds)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
 
+
+// public function syncCommunities()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-communities?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     $apiIds = [];
+
+//     foreach ($results as $row) {
+//         $id   = $row['id'] ?? null;
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+
+//         if (!$id || !$name) continue;
+
+//         $id = (int) $id;
+//         $apiIds[] = $id;
+
+//         $nameForSlug = str_replace(['(', ')'], '', $name);
+//         $slug = \Illuminate\Support\Str::slug($nameForSlug);
+
+//         $existing = DB::table('communities')
+//             ->select('id', 'name', 'slug', 'active')
+//             ->where('id', $id)
+//             ->first();
+
+//         if (!$existing) {
+//             DB::table('communities')->insert([
+//                 'id'         => $id,
+//                 'name'       => $name,
+//                 'slug'       => $slug,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('communities')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name ||
+//             ($existing->slug ?? '') !== $slug
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('communities')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'name'       => $name,
+//                     'slug'       => $slug,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiIds = array_values(array_unique($apiIds));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiIds) > 0) {
+//         $deactivated = DB::table('communities')
+//             ->whereNotIn('id', $apiIds)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
+
+// public function syncSubCommunities()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-subcommunities?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     // collect API ids to detect removals
+//     $apiIds = [];
+
+//     foreach ($results as $row) {
+//         $id   = $row['id'] ?? null;
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+
+//         if (!$id || !$name) continue;
+
+//         $id = (int) $id;
+//         $apiIds[] = $id;
+
+//         // slug: keep bracket words, remove only bracket characters
+//         $nameForSlug = str_replace(['(', ')'], '', $name);
+//         $slug = \Illuminate\Support\Str::slug($nameForSlug);
+
+//         $existing = DB::table('sub_communities')
+//             ->select('id', 'name', 'slug', 'active')
+//             ->where('id', $id)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('sub_communities')->insert([
+//                 'id'         => $id,
+//                 'name'       => $name,
+//                 'slug'       => $slug,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('sub_communities')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name/slug changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name ||
+//             ($existing->slug ?? '') !== $slug
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('sub_communities')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'name'       => $name,
+//                     'slug'       => $slug,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiIds = array_values(array_unique($apiIds));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiIds) > 0) {
+//         $deactivated = DB::table('sub_communities')
+//             ->whereNotIn('id', $apiIds)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
 public function syncSubCommunities()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-subcommunities?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -279,111 +532,51 @@ public function syncSubCommunities()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    // collect API ids to detect removals
-    $apiIds = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
-        $id   = $row['id'] ?? null;
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
 
-        if (!$id || !$name) continue;
-
-        $id = (int) $id;
-        $apiIds[] = $id;
-
-        // slug: keep bracket words, remove only bracket characters
-        $nameForSlug = str_replace(['(', ')'], '', $name);
-        $slug = \Illuminate\Support\Str::slug($nameForSlug);
-
-        $existing = DB::table('sub_communities')
-            ->select('id', 'name', 'slug', 'active')
-            ->where('id', $id)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('sub_communities')->insert([
-                'id'         => $id,
-                'name'       => $name,
-                'slug'       => $slug,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('sub_communities')
-                ->where('id', $id)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('sub_communities')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name/slug changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name ||
-            ($existing->slug ?? '') !== $slug
-        );
+        // ✅ slugify from name (removing only bracket characters, keeping words)
+        $nameForSlug = str_replace(['(', ')'], '', $name);
+        $slug = \Illuminate\Support\Str::slug($nameForSlug);
 
-        if ($needsUpdate) {
-            DB::table('sub_communities')
-                ->where('id', $id)
-                ->update([
-                    'name'       => $name,
-                    'slug'       => $slug,
-                    'updated_at' => now(),
-                ]);
+        // ✅ Insert ONLY name, slug, active = 1 (touch nothing else)
+        DB::table('sub_communities')->insert([
+            'name'   => $name,
+            'slug'   => $slug,
+            'active' => 1,
+        ]);
 
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiIds = array_values(array_unique($apiIds));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiIds) > 0) {
-        $deactivated = DB::table('sub_communities')
-            ->whereNotIn('id', $apiIds)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
-
 public function syncListingDevelopers()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-developers?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -404,107 +597,289 @@ public function syncListingDevelopers()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    $apiIds = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
-        $id   = $row['id'] ?? null;
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
 
-        if (!$id || !$name) continue;
-
-        $id = (int) $id;
-        $apiIds[] = $id;
-
-        // slug: remove only ( ) but keep words inside
-        $nameForSlug = str_replace(['(', ')'], '', $name);
-        $slug = \Illuminate\Support\Str::slug($nameForSlug);
-
-        $existing = DB::table('listing_developers')
-            ->select('id', 'name', 'slug', 'active')
-            ->where('id', $id)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('listing_developers')->insert([
-                'id'         => $id,
-                'name'       => $name,
-                'slug'       => $slug,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('listing_developers')
-                ->where('id', $id)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('listing_developers')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name/slug changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name ||
-            ($existing->slug ?? '') !== $slug
-        );
+        // ✅ slug: remove only ( ) but keep words inside
+        $nameForSlug = str_replace(['(', ')'], '', $name);
+        $slug = \Illuminate\Support\Str::slug($nameForSlug);
 
-        if ($needsUpdate) {
-            DB::table('listing_developers')
-                ->where('id', $id)
-                ->update([
-                    'name'       => $name,
-                    'slug'       => $slug,
-                    'updated_at' => now(),
-                ]);
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
+        // ✅ Insert ONLY name, slug, active = 1 (touch nothing else)
+        DB::table('listing_developers')->insert([
+            'name'   => $name,
+            'slug'   => $slug,
+            'active' => 1,
+        ]);
 
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiIds = array_values(array_unique($apiIds));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiIds) > 0) {
-        $deactivated = DB::table('listing_developers')
-            ->whereNotIn('id', $apiIds)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
+
+
+
+// public function syncListingDevelopers()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-developers?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     $apiIds = [];
+
+//     foreach ($results as $row) {
+//         $id   = $row['id'] ?? null;
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+
+//         if (!$id || !$name) continue;
+
+//         $id = (int) $id;
+//         $apiIds[] = $id;
+
+//         // slug: remove only ( ) but keep words inside
+//         $nameForSlug = str_replace(['(', ')'], '', $name);
+//         $slug = \Illuminate\Support\Str::slug($nameForSlug);
+
+//         $existing = DB::table('listing_developers')
+//             ->select('id', 'name', 'slug', 'active')
+//             ->where('id', $id)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('listing_developers')->insert([
+//                 'id'         => $id,
+//                 'name'       => $name,
+//                 'slug'       => $slug,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('listing_developers')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name/slug changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name ||
+//             ($existing->slug ?? '') !== $slug
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('listing_developers')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'name'       => $name,
+//                     'slug'       => $slug,
+//                     'updated_at' => now(),
+//                 ]);
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiIds = array_values(array_unique($apiIds));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiIds) > 0) {
+//         $deactivated = DB::table('listing_developers')
+//             ->whereNotIn('id', $apiIds)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
+// public function syncLocations()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-locations?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     // collect API codes to detect removals
+//     $apiCodes = [];
+
+//     foreach ($results as $row) {
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+//         $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
+
+//         if (!$name || !$code) continue;
+
+//         $apiCodes[] = $code;
+
+//         $existing = DB::table('locations')
+//             ->select('id', 'name', 'code', 'active')
+//             ->where('code', $code)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('locations')->insert([
+//                 'name'       => $name,
+//                 'code'       => $code,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('locations')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('locations')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'name'       => $name,
+//                     'updated_at' => now(),
+//                 ]);
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiCodes = array_values(array_unique($apiCodes));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiCodes) > 0) {
+//         $deactivated = DB::table('locations')
+//             ->whereNotIn('code', $apiCodes)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
 public function syncLocations()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-locations?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -525,100 +900,46 @@ public function syncLocations()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    // collect API codes to detect removals
-    $apiCodes = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
-        $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
 
-        if (!$name || !$code) continue;
-
-        $apiCodes[] = $code;
-
-        $existing = DB::table('locations')
-            ->select('id', 'name', 'code', 'active')
-            ->where('code', $code)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('locations')->insert([
-                'name'       => $name,
-                'code'       => $code,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('locations')
-                ->where('code', $code)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('locations')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name
-        );
+        // ✅ Insert ONLY name + active = 1 (touch nothing else)
+        DB::table('locations')->insert([
+            'name'   => $name,
+            'active' => 1,
+        ]);
 
-        if ($needsUpdate) {
-            DB::table('locations')
-                ->where('code', $code)
-                ->update([
-                    'name'       => $name,
-                    'updated_at' => now(),
-                ]);
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiCodes = array_values(array_unique($apiCodes));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiCodes) > 0) {
-        $deactivated = DB::table('locations')
-            ->whereNotIn('code', $apiCodes)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
 public function syncCities()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-cities?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -639,100 +960,162 @@ public function syncCities()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    // collect API codes to detect removals
-    $apiCodes = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
-        $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
 
-        if (!$name || !$code) continue;
-
-        $apiCodes[] = $code;
-
-        $existing = DB::table('cities')
-            ->select('id', 'name', 'code', 'active')
-            ->where('code', $code)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('cities')->insert([
-                'name'       => $name,
-                'code'       => $code,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('cities')
-                ->where('code', $code)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('cities')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name
-        );
+        // ✅ Insert ONLY name + active = 1 (touch nothing else)
+        DB::table('cities')->insert([
+            'name'   => $name,
+            'active' => 1,
+        ]);
 
-        if ($needsUpdate) {
-            DB::table('cities')
-                ->where('code', $code)
-                ->update([
-                    'name'       => $name,
-                    'updated_at' => now(),
-                ]);
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiCodes = array_values(array_unique($apiCodes));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiCodes) > 0) {
-        $deactivated = DB::table('cities')
-            ->whereNotIn('code', $apiCodes)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
+
+
+// public function syncCities()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-cities?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     // collect API codes to detect removals
+//     $apiCodes = [];
+
+//     foreach ($results as $row) {
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+//         $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
+
+//         if (!$name || !$code) continue;
+
+//         $apiCodes[] = $code;
+
+//         $existing = DB::table('cities')
+//             ->select('id', 'name', 'code', 'active')
+//             ->where('code', $code)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('cities')->insert([
+//                 'name'       => $name,
+//                 'code'       => $code,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('cities')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('cities')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'name'       => $name,
+//                     'updated_at' => now(),
+//                 ]);
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiCodes = array_values(array_unique($apiCodes));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiCodes) > 0) {
+//         $deactivated = DB::table('cities')
+//             ->whereNotIn('code', $apiCodes)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
 public function syncAgents()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-listing-agents-full?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -747,13 +1130,9 @@ public function syncAgents()
         return response()->json(['success' => false, 'message' => 'Invalid API response'], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    $apiIds = [];
+    $inserted = 0;
+    $updated  = 0;
+    $skipped  = 0;
 
     // helper to normalize strings (trim + remove \r\n + collapse spaces)
     $norm = function ($v) {
@@ -768,8 +1147,6 @@ public function syncAgents()
         $id = isset($row['id']) ? (int) $row['id'] : null;
         if (!$id) continue;
 
-        $apiIds[] = $id;
-
         $name      = $norm($row['agent_name'] ?? null);
         $email     = $norm($row['agent_email'] ?? null);
         $phone     = $norm($row['agent_mobile'] ?? null);
@@ -777,18 +1154,23 @@ public function syncAgents()
         $listingId = $norm($row['listing_id'] ?? null);
 
         // ✅ store license_no in "orn"
-        $orn       = $norm($row['license_no'] ?? null);
+        $orn = $norm($row['license_no'] ?? null);
 
         if (!$name) continue;
 
         $slug = \Illuminate\Support\Str::slug(str_replace(['(', ')'], '', $name));
 
+        // ✅ ACTIVE RULE:
+        // - only explicit 0 from API makes it inactive
+        // - anything else (missing/null/empty/1/etc) => active = 1
+        $active = (isset($row['active']) && (string) $row['active'] === '0') ? 0 : 1;
+
         $existing = DB::table('agents')
-            ->select('id', 'name', 'slug', 'email', 'phone', 'image', 'active', 'listing_id', 'orn')
+            ->select('id', 'name', 'slug', 'email', 'phone', 'image', 'listing_id', 'orn', 'active')
             ->where('id', $id)
             ->first();
 
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+        // ✅ 1) API has it but DB doesn't -> INSERT
         if (!$existing) {
             DB::table('agents')->insert([
                 'id'         => $id,
@@ -799,7 +1181,7 @@ public function syncAgents()
                 'phone'      => $phone,
                 'image'      => $photo,
                 'orn'        => $orn,
-                'active'     => 1,
+                'active'     => $active, // ✅ default 1 unless API explicitly 0
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -816,21 +1198,9 @@ public function syncAgents()
         $dbImage     = $norm($existing->image);
         $dbListingId = $norm($existing->listing_id);
         $dbOrn       = $norm($existing->orn);
-        $dbActive    = (int) ($existing->active ?? 0);
+        $dbActive    = (int) ($existing->active ?? 1);
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ($dbActive === 0) {
-            DB::table('agents')
-                ->where('id', $id)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
-            $activated++;
-            $dbActive = 1; // keep logic consistent below
-        }
-
-        // ✅ Update only if data changed (active handled above)
+        // ✅ Update only if data changed OR needs re-activation (DB 0 -> API 1)
         $needsUpdate = (
             $dbName !== $name ||
             $dbSlug !== $slug ||
@@ -838,7 +1208,9 @@ public function syncAgents()
             $dbPhone !== $phone ||
             $dbImage !== $photo ||
             $dbListingId !== $listingId ||
-            $dbOrn !== $orn
+            $dbOrn !== $orn ||
+            ($dbActive === 0 && $active === 1) || // ✅ reactivate
+            ($dbActive === 1 && $active === 0)    // ✅ deactivate only if API explicitly 0
         );
 
         if ($needsUpdate) {
@@ -852,47 +1224,190 @@ public function syncAgents()
                     'phone'      => $phone,
                     'image'      => $photo,
                     'orn'        => $orn,
+                    'active'     => $active, // ✅ sync active (default 1 unless API explicitly 0)
                     'updated_at' => now(),
                 ]);
 
             if ($affected > 0) $updated++;
             else $skipped++;
         } else {
-            // count skipped only if it was already active
-            if ($dbActive === 1) {
-                $skipped++;
-            }
+            $skipped++;
         }
     }
 
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiIds = array_values(array_unique($apiIds));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiIds) > 0) {
-        $deactivated = DB::table('agents')
-            ->whereNotIn('id', $apiIds)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
-    }
-
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'updated'  => $updated,
+        'skipped'  => $skipped,
     ]);
 }
 
 
 
+// public function syncAgents()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-listing-agents-full?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json(['success' => false, 'message' => 'API request failed'], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json(['success' => false, 'message' => 'Invalid API response'], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     $apiIds = [];
+
+//     // helper to normalize strings (trim + remove \r\n + collapse spaces)
+//     $norm = function ($v) {
+//         $v = is_string($v) ? $v : (is_numeric($v) ? (string) $v : '');
+//         $v = str_replace(["\r", "\n"], '', $v);
+//         $v = trim($v);
+//         $v = preg_replace('/\s+/', ' ', $v); // collapse multiple spaces
+//         return $v === '' ? null : $v; // convert empty => null
+//     };
+
+//     foreach ($results as $row) {
+//         $id = isset($row['id']) ? (int) $row['id'] : null;
+//         if (!$id) continue;
+
+//         $apiIds[] = $id;
+
+//         $name      = $norm($row['agent_name'] ?? null);
+//         $email     = $norm($row['agent_email'] ?? null);
+//         $phone     = $norm($row['agent_mobile'] ?? null);
+//         $photo     = $norm($row['photo'] ?? null);
+//         $listingId = $norm($row['listing_id'] ?? null);
+
+//         // ✅ store license_no in "orn"
+//         $orn       = $norm($row['license_no'] ?? null);
+
+//         if (!$name) continue;
+
+//         $slug = \Illuminate\Support\Str::slug(str_replace(['(', ')'], '', $name));
+
+//         $existing = DB::table('agents')
+//             ->select('id', 'name', 'slug', 'email', 'phone', 'image', 'active', 'listing_id', 'orn')
+//             ->where('id', $id)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('agents')->insert([
+//                 'id'         => $id,
+//                 'listing_id' => $listingId,
+//                 'name'       => $name,
+//                 'slug'       => $slug,
+//                 'email'      => $email,
+//                 'phone'      => $phone,
+//                 'image'      => $photo,
+//                 'orn'        => $orn,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         // normalize DB values the same way
+//         $dbName      = $norm($existing->name);
+//         $dbSlug      = $norm($existing->slug);
+//         $dbEmail     = $norm($existing->email);
+//         $dbPhone     = $norm($existing->phone);
+//         $dbImage     = $norm($existing->image);
+//         $dbListingId = $norm($existing->listing_id);
+//         $dbOrn       = $norm($existing->orn);
+//         $dbActive    = (int) ($existing->active ?? 0);
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ($dbActive === 0) {
+//             DB::table('agents')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+//             $activated++;
+//             $dbActive = 1; // keep logic consistent below
+//         }
+
+//         // ✅ Update only if data changed (active handled above)
+//         $needsUpdate = (
+//             $dbName !== $name ||
+//             $dbSlug !== $slug ||
+//             $dbEmail !== $email ||
+//             $dbPhone !== $phone ||
+//             $dbImage !== $photo ||
+//             $dbListingId !== $listingId ||
+//             $dbOrn !== $orn
+//         );
+
+//         if ($needsUpdate) {
+//             $affected = DB::table('agents')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'listing_id' => $listingId,
+//                     'name'       => $name,
+//                     'slug'       => $slug,
+//                     'email'      => $email,
+//                     'phone'      => $phone,
+//                     'image'      => $photo,
+//                     'orn'        => $orn,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             if ($affected > 0) $updated++;
+//             else $skipped++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ($dbActive === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiIds = array_values(array_unique($apiIds));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiIds) > 0) {
+//         $deactivated = DB::table('agents')
+//             ->whereNotIn('id', $apiIds)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
+
 public function syncPrivateAmenities()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-private-amenities?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -913,102 +1428,164 @@ public function syncPrivateAmenities()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    $apiCodes = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
-        $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
 
-        if (!$name || !$code) continue;
-
-        $apiCodes[] = $code;
-
-        $existing = DB::table('private_amenities')
-            ->select('id', 'name', 'code', 'active')
-            ->where('code', $code)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('private_amenities')->insert([
-                'name'       => $name,
-                'code'       => $code,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('private_amenities')
-                ->where('code', $code)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('private_amenities')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name
-        );
+        // ✅ Insert ONLY name + active = 1 (touch nothing else)
+        DB::table('private_amenities')->insert([
+            'name'   => $name,
+            'active' => 1,
+        ]);
 
-        if ($needsUpdate) {
-            DB::table('private_amenities')
-                ->where('code', $code)
-                ->update([
-                    'name'       => $name,
-                    'updated_at' => now(),
-                ]);
-
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiCodes = array_values(array_unique($apiCodes));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiCodes) > 0) {
-        $deactivated = DB::table('private_amenities')
-            ->whereNotIn('code', $apiCodes)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
 
+
+
+// public function syncPrivateAmenities()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-private-amenities?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     $apiCodes = [];
+
+//     foreach ($results as $row) {
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+//         $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
+
+//         if (!$name || !$code) continue;
+
+//         $apiCodes[] = $code;
+
+//         $existing = DB::table('private_amenities')
+//             ->select('id', 'name', 'code', 'active')
+//             ->where('code', $code)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('private_amenities')->insert([
+//                 'name'       => $name,
+//                 'code'       => $code,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('private_amenities')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('private_amenities')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'name'       => $name,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiCodes = array_values(array_unique($apiCodes));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiCodes) > 0) {
+//         $deactivated = DB::table('private_amenities')
+//             ->whereNotIn('code', $apiCodes)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
 public function syncCommercialAmenities()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-commercial-amenities?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -1029,102 +1606,163 @@ public function syncCommercialAmenities()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    $apiCodes = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
-        $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
 
-        if (!$name || !$code) continue;
-
-        $apiCodes[] = $code;
-
-        $existing = DB::table('commercial_amenities')
-            ->select('id', 'name', 'code', 'active')
-            ->where('code', $code)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('commercial_amenities')->insert([
-                'name'       => $name,
-                'code'       => $code,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('commercial_amenities')
-                ->where('code', $code)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('commercial_amenities')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name
-        );
+        // ✅ Insert ONLY name + active = 1 (touch nothing else)
+        DB::table('commercial_amenities')->insert([
+            'name'   => $name,
+            'active' => 1,
+        ]);
 
-        if ($needsUpdate) {
-            DB::table('commercial_amenities')
-                ->where('code', $code)
-                ->update([
-                    'name'       => $name,
-                    'updated_at' => now(),
-                ]);
-
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiCodes = array_values(array_unique($apiCodes));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiCodes) > 0) {
-        $deactivated = DB::table('commercial_amenities')
-            ->whereNotIn('code', $apiCodes)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
 
 
+
+// public function syncCommercialAmenities()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-commercial-amenities?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     $apiCodes = [];
+
+//     foreach ($results as $row) {
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+//         $code = trim(str_replace(["\r", "\n"], '', $row['id'] ?? ''));
+
+//         if (!$name || !$code) continue;
+
+//         $apiCodes[] = $code;
+
+//         $existing = DB::table('commercial_amenities')
+//             ->select('id', 'name', 'code', 'active')
+//             ->where('code', $code)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('commercial_amenities')->insert([
+//                 'name'       => $name,
+//                 'code'       => $code,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('commercial_amenities')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('commercial_amenities')
+//                 ->where('code', $code)
+//                 ->update([
+//                     'name'       => $name,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiCodes = array_values(array_unique($apiCodes));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiCodes) > 0) {
+//         $deactivated = DB::table('commercial_amenities')
+//             ->whereNotIn('code', $apiCodes)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated
+//     ]);
+// }
+
 public function syncProperties()
 {
+    ini_set('max_execution_time', 300);
+    set_time_limit(300);
     $url = 'https://youtupia.net/shiro/api/get-buildings?key=ShacRa8112aOa8648Ft';
 
     $response = Http::get($url);
@@ -1145,105 +1783,170 @@ public function syncProperties()
         ], 500);
     }
 
-    $inserted    = 0;
-    $updated     = 0;
-    $skipped     = 0;
-    $activated   = 0;
-    $deactivated = 0;
-
-    $apiIds = [];
+    $inserted = 0;
+    $skipped  = 0;
 
     foreach ($results as $row) {
-        $id   = isset($row['id']) ? (int) $row['id'] : null;
         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
 
-        if (!$id || !$name) continue;
-
-        $apiIds[] = $id;
-
-        // remove only brackets characters, keep words inside
-        $nameForSlug = str_replace(['(', ')'], '', $name);
-        $slug = Str::slug($nameForSlug);
-
-        $existing = DB::table('properties')
-            ->select('id', 'name', 'slug', 'active')
-            ->where('id', $id)
-            ->first();
-
-        // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
-        if (!$existing) {
-            DB::table('properties')->insert([
-                'id'         => $id,
-                'name'       => $name,
-                'slug'       => $slug,
-                'active'     => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $inserted++;
+        if ($name === '') {
             continue;
         }
 
-        // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
-        if ((int)($existing->active ?? 0) === 0) {
-            DB::table('properties')
-                ->where('id', $id)
-                ->update([
-                    'active'     => 1,
-                    'updated_at' => now(),
-                ]);
+        // ✅ name is unique identity (if exists, skip)
+        $exists = DB::table('properties')
+            ->where('name', $name)
+            ->exists();
 
-            $activated++;
+        if ($exists) {
+            $skipped++;
+            continue;
         }
 
-        // ✅ Update only if name/slug changed (active already handled above)
-        $needsUpdate = (
-            ($existing->name ?? '') !== $name ||
-            ($existing->slug ?? '') !== $slug
-        );
+        // ✅ slugify from name (remove only bracket characters, keep words inside)
+        $nameForSlug = str_replace(['(', ')'], '', $name);
+        $slug = \Illuminate\Support\Str::slug($nameForSlug);
 
-        if ($needsUpdate) {
-            DB::table('properties')
-                ->where('id', $id)
-                ->update([
-                    'name'       => $name,
-                    'slug'       => $slug,
-                    'updated_at' => now(),
-                ]);
+        // ✅ Insert ONLY name, slug, active = 1 (touch nothing else)
+        DB::table('properties')->insert([
+            'name'   => $name,
+            'slug'   => $slug,
+            'active' => 1,
+        ]);
 
-            $updated++;
-        } else {
-            // count skipped only if it was already active
-            if ((int)($existing->active ?? 0) === 1) {
-                $skipped++;
-            }
-        }
-    }
-
-    // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
-    $apiIds = array_values(array_unique($apiIds));
-
-    // Safety: if API returns nothing, don't deactivate everything
-    if (count($apiIds) > 0) {
-        $deactivated = DB::table('properties')
-            ->whereNotIn('id', $apiIds)
-            ->where('active', '!=', 0)
-            ->update([
-                'active'     => 0,
-                'updated_at' => now(),
-            ]);
+        $inserted++;
     }
 
     return response()->json([
-        'success'     => true,
-        'inserted'    => $inserted,
-        'activated'   => $activated,
-        'updated'     => $updated,
-        'skipped'     => $skipped,
-        'deactivated' => $deactivated,
+        'success'  => true,
+        'inserted' => $inserted,
+        'skipped'  => $skipped,
     ]);
 }
+
+
+
+// public function syncProperties()
+// {
+//     $url = 'https://youtupia.net/shiro/api/get-buildings?key=ShacRa8112aOa8648Ft';
+
+//     $response = Http::get($url);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'API request failed'
+//         ], 500);
+//     }
+
+//     $results = $response->json('results');
+
+//     if (!is_array($results)) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid API response'
+//         ], 500);
+//     }
+
+//     $inserted    = 0;
+//     $updated     = 0;
+//     $skipped     = 0;
+//     $activated   = 0;
+//     $deactivated = 0;
+
+//     $apiIds = [];
+
+//     foreach ($results as $row) {
+//         $id   = isset($row['id']) ? (int) $row['id'] : null;
+//         $name = trim(str_replace(["\r", "\n"], '', $row['text'] ?? ''));
+
+//         if (!$id || !$name) continue;
+
+//         $apiIds[] = $id;
+
+//         // remove only brackets characters, keep words inside
+//         $nameForSlug = str_replace(['(', ')'], '', $name);
+//         $slug = Str::slug($nameForSlug);
+
+//         $existing = DB::table('properties')
+//             ->select('id', 'name', 'slug', 'active')
+//             ->where('id', $id)
+//             ->first();
+
+//         // ✅ 1) API has it but DB doesn't -> INSERT with active = 1
+//         if (!$existing) {
+//             DB::table('properties')->insert([
+//                 'id'         => $id,
+//                 'name'       => $name,
+//                 'slug'       => $slug,
+//                 'active'     => 1,
+//                 'created_at' => now(),
+//                 'updated_at' => now(),
+//             ]);
+
+//             $inserted++;
+//             continue;
+//         }
+
+//         // ✅ 2) API has it and DB has it but inactive -> activate (active = 1)
+//         if ((int)($existing->active ?? 0) === 0) {
+//             DB::table('properties')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'active'     => 1,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $activated++;
+//         }
+
+//         // ✅ Update only if name/slug changed (active already handled above)
+//         $needsUpdate = (
+//             ($existing->name ?? '') !== $name ||
+//             ($existing->slug ?? '') !== $slug
+//         );
+
+//         if ($needsUpdate) {
+//             DB::table('properties')
+//                 ->where('id', $id)
+//                 ->update([
+//                     'name'       => $name,
+//                     'slug'       => $slug,
+//                     'updated_at' => now(),
+//                 ]);
+
+//             $updated++;
+//         } else {
+//             // count skipped only if it was already active
+//             if ((int)($existing->active ?? 0) === 1) {
+//                 $skipped++;
+//             }
+//         }
+//     }
+
+//     // ✅ 3) Not in API but exists in DB -> make inactive (active = 0) (no delete)
+//     $apiIds = array_values(array_unique($apiIds));
+
+//     // Safety: if API returns nothing, don't deactivate everything
+//     if (count($apiIds) > 0) {
+//         $deactivated = DB::table('properties')
+//             ->whereNotIn('id', $apiIds)
+//             ->where('active', '!=', 0)
+//             ->update([
+//                 'active'     => 0,
+//                 'updated_at' => now(),
+//             ]);
+//     }
+
+//     return response()->json([
+//         'success'     => true,
+//         'inserted'    => $inserted,
+//         'activated'   => $activated,
+//         'updated'     => $updated,
+//         'skipped'     => $skipped,
+//         'deactivated' => $deactivated,
+//     ]);
+// }
 
 
 // public function sync(Request $request)

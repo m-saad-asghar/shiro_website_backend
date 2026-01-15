@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\User\UserController;
 use App\Http\Controllers\Api\User\UserPaymentController;
 use App\Http\Controllers\Api\Property\PropertyLeadController;
 use App\Http\Controllers\Api\DeveloperController;
+use App\Http\Controllers\Api\AreaController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\ListingSyncController;
@@ -86,10 +87,19 @@ Route::get('/fetch_developer_data/{slug}', [DeveloperController::class, 'show'])
 Route::get('/fetch_community_data/{slug}', [CommunityController::class, 'show']);
 Route::get('/fetch_projects_from_developer/{slug}', [DeveloperController::class, 'projectsFromDeveloper']);
 Route::get('/fetch_project_details/{slug}', [ProjectController::class, 'show']);
+Route::post(
+    '/fetch_projects_from_community',
+    [DeveloperController::class, 'projectsFromCommunity']
+);
+
 
 Route::get('/agents', [AgentDeveloperController::class, 'allAgents']);
 Route::get('/developers', [AgentDeveloperController::class, 'allDevelopers']);
 Route::get('show/developer', [AgentDeveloperController::class, 'show']);
+
+Route::get('/areas', [AreaController::class, 'allAreas']);
+Route::get('/fetch_area_details/{slug}', [AreaController::class, 'fetchAreaDetails']);
+Route::post('/listings_by_slug', [ListingController::class, 'listingsBySlug']);
 
 Route::get('/services', [ServiceController::class, 'allServices']);
 Route::get('show/services', [ServiceController::class, 'showService']);

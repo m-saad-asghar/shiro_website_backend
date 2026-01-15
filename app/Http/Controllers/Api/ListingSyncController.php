@@ -19,6 +19,8 @@ class ListingSyncController extends Controller
 
     public function sync(Request $request)
     {
+        ini_set('max_execution_time', 600);
+        set_time_limit(600);
         $synced  = 0; // inserted/updated
         $skipped = 0; // no change
         $errors  = [];
@@ -80,7 +82,10 @@ class ListingSyncController extends Controller
                     $unitId = $property['unit_id'] ?? null;
 
                     $title  = $property['listing_title'] ?? null;
-                    $active = (int)($property['listing_status'] ?? 0);
+                    $active = isset($property['listing_status']) && $property['listing_status'] !== ''
+    ? (int) $property['listing_status']
+    : 1;
+
 
                     $propertyType = $property['property_type'] ?? [];
                     $propTypeName = $propertyType['prop_type_name'] ?? null;

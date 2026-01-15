@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\Property;
 use Illuminate\Support\Facades\DB;
-
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 
@@ -145,5 +144,136 @@ public function resolveSearchSlugs(Request $request)
             "data" => $ordered
         ]);
     }
+
+
+public function listingsBySlug(Request $request)
+    {
+        $community_name = trim((string) $request->input('community_name', ''));
+
+        if ($community_name === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Community is required.',
+                'data' => null,
+            ], 422);
+        }
+
+        // ✅ select columns that exist in your listings table
+        $listingSelect = [
+            'id',
+            'reference',
+            'unit_id',
+            'property_t',
+            'price',
+            'bedrooms',
+            'bathrooms',
+            'area',
+            'community',
+            'community_slug',
+            'sub_community',
+            'sub_community_slug',
+            'property',
+            'property_slug',
+            'property_type',
+            'property_category', // Sale / Rent
+            'is_featured',
+            'active',
+            'title',
+            'offplan',
+        ];
+
+        $base = DB::table('listings')
+            ->select($listingSelect)
+            ->where('community', $community_name)
+            ->where('active', 1);
+
+        // ✅ latest = highest id
+        $sale = (clone $base)
+            ->where('property_category', 'Sale')
+            ->orderByDesc('id')
+            ->limit(3)
+            ->get();
+
+        $need = 3 - $sale->count();
+
+        $rent = collect();
+        if ($need > 0) {
+            $rent = (clone $base)
+                ->where('property_category', 'Rent')
+                ->orderByDesc('id')
+                ->limit($need)
+                ->get();
+        }
+
+        $need = 3 - ($sale->count() + $rent->count());
+
+        $offplan = collect();
+        if ($need > 0) {
+            $offplan = (clone $base)
+                ->where('offplan', 1)
+                ->orderByDesc('id')
+                ->limit($need)
+                ->get();
+        }
+
+        // ✅ final combined list (Sale first, then Rent, then Offplan)
+        $listings = $sale->concat($rent)->concat($offplan)->values();
+
+        // Fetch images (max 10 each) in one query
+        $allIds = $listings->pluck('id')->unique()->values()->all();
+        $imagesByListingId = collect();
+
+        if (!empty($allIds)) {
+            $images = DB::table('listing_images')
+                ->select(['listing_id', 'image'])
+                ->whereIn('listing_id', $allIds)
+                ->where('active', 1)
+                ->orderByRaw('COALESCE(sorting, 999999) ASC')
+                ->orderBy('id', 'ASC')
+                ->get();
+
+            $imagesByListingId = $images
+                ->groupBy('listing_id')
+                ->map(function ($rows) {
+                    return $rows->pluck('image')->take(10)->values()->all(); // ✅ max 10
+                });
+        }
+
+        // ✅ company contact from .env (works with config cache if you add config/app.php entry)
+        // Recommended: add this in config/app.php:
+        // 'company_contact' => [
+        //   'phone' => env('COMPANY_PHONE'),
+        //   'whatsapp' => env('COMPANY_WHATSAPP'),
+        //   'email' => env('COMPANY_EMAIL'),
+        // ],
+        $companyContact = config('app.company_contact');
+
+        // fallback (in case config not added yet)
+        if (!$companyContact || !is_array($companyContact)) {
+            $companyContact = [
+                'phone'    => env('COMPANY_PHONE'),
+                'whatsapp' => env('COMPANY_WHATSAPP'),
+                'email'    => env('COMPANY_EMAIL'),
+            ];
+        }
+
+        // attach images + company_contact
+        $listings = $listings->map(function ($l) use ($imagesByListingId, $companyContact) {
+            $arr = (array) $l;
+            $arr['images'] = $imagesByListingId->get($arr['id'], []);
+            $arr['company_contact'] = $companyContact;
+            return $arr;
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'community' => $community_name,
+                'listings' => $listings,
+            ],
+        ], 200);
+    }
+
+
 
 }

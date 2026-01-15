@@ -149,4 +149,101 @@ class DeveloperController extends Controller
         'projects'    => $projects,   
     ]);
     }
+
+    public function projectsFromCommunity(Request $request)
+{
+    $community_name = trim((string) $request->input('community_name', ''));
+
+    if ($community_name === '') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Community name is required.',
+            'data' => null,
+        ], 422);
+    }
+
+    $rows = DB::table('communities')
+        ->leftJoin('projects', 'projects.community_id', '=', 'communities.id')
+        ->where('communities.name', $community_name)
+        ->select(
+            // community
+            'communities.id as community_id',
+            'communities.name as community_name',
+            'communities.slug as community_slug',
+            'communities.description as community_description',
+            'communities.main_image as community_main_image',
+            'communities.selling_point as community_selling_point',
+            'communities.about as community_about',
+
+            // projects
+            'projects.id as project_id',
+            'projects.name as project_name',
+            'projects.slug as project_slug',
+            'projects.description as project_description',
+            'projects.main_image as project_main_image',
+            'projects.community_name as project_community_name',
+            'projects.starting_price as project_starting_price',
+            'projects.handover as project_handover'
+        )
+        ->get();
+
+    if ($rows->isEmpty()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Community not found.',
+            'data' => null,
+        ], 404);
+    }
+
+    $communityRow = $rows->first();
+
+    // ✅ Projects
+    $projects = $rows
+        ->filter(fn ($row) => !is_null($row->project_id))
+        ->map(fn ($row) => [
+            'id'                     => $row->project_id,
+            'name'                   => $row->project_name,
+            'slug'                   => $row->project_slug,
+            'description'            => $row->project_description,
+            'project_main_image'     => $row->project_main_image,
+            'project_community_name' => $row->project_community_name,
+            'project_starting_price' => $row->project_starting_price,
+            'project_handover'       => $row->project_handover,
+        ])
+        ->unique('id')
+        ->values()
+        ->all();
+
+    // ✅ FAQs (from faq_communities)
+    $faqs = DB::table('faq_communities')
+        ->where('community_id', $communityRow->community_id)
+        ->where('active', 1)
+        ->orderBy('id', 'asc')
+        ->get(['id', 'title', 'description'])
+        ->map(fn ($faq) => [
+            'id'       => $faq->id,
+            'question' => $faq->title,
+            'answer'   => $faq->description, // contains HTML (<p>...</p><br/> etc.)
+        ])
+        ->values()
+        ->all();
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'community' => [
+                'id'            => $communityRow->community_id,
+                'name'          => $communityRow->community_name,
+                'slug'          => $communityRow->community_slug,
+                'description'   => $communityRow->community_description,
+                'main_image'    => $communityRow->community_main_image,
+                'selling_point' => $communityRow->community_selling_point,
+                'about'         => $communityRow->community_about,
+            ],
+            'projects' => $projects,
+            'faqs'     => $faqs, // ✅ added
+        ],
+    ], 200);
+}
+
 }

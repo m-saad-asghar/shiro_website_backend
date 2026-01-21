@@ -106,6 +106,7 @@ Route::get('show/services', [ServiceController::class, 'showService']);
 Route::get('/types', [TypeController::class, 'allTypes']);
 
 Route::get('/fetch_employees', [EmployeeController::class, 'show']);
+Route::get('/fetch_employee_details/{slug}', [EmployeeController::class, 'showDetails']);
 Route::post('/fetch_message_from_founder', [EmployeeController::class, 'messageFromFounder']);
 Route::get('/fetch_about_us_content', [EmployeeController::class, 'fetchAboutUsContent']);
 

@@ -114,7 +114,7 @@ $uniqueSellingPointsByProject = DB::table('project_unique_selling_points')
 $locationOfProject = DB::table('project_locations')
     ->whereIn('project_id', $projectIds)
     // ->where('active', 1) // if you have active column
-    ->select('project_id', 'id', 'title', 'description', 'main_image')
+    ->select('project_id', 'id', 'title', 'description', 'main_image', 'map_link')
     ->orderBy('id', 'asc')
     ->get()
     ->groupBy('project_id')
@@ -123,6 +123,7 @@ $locationOfProject = DB::table('project_locations')
         'title' => $usp->title,
         'description' => $usp->description,
         'main_image' => $usp->main_image,
+        'map_link' => $usp->map_link,
     ])->values());
 
     /** ✅ Attach all arrays */

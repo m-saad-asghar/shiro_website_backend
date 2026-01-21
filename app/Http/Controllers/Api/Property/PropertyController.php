@@ -282,21 +282,17 @@ class PropertyController extends Controller
 
   public function listingDetails($reference)
 {
-    // 1) Listing + Agent join (only required agent fields)
     $listing = DB::table('listings')
         ->leftJoin('agents', 'agents.id', '=', 'listings.agent_id')
         ->where('listings.reference', $reference)
         ->select(
             'listings.*',
             'agents.name as employee_name',
-            // 'agents.orn as employee_orn',
             'agents.slug as employee_slug',
-            // 'agents.position as employee_position',
             'agents.image as employee_profile_picture',
             'agents.orn as employee_orn',
             'agents.email as employee_email',
             'agents.phone as employee_phone',
-            // 'agents.whatsapp as employee_whatsapp'
         )
         ->first();
 
@@ -307,14 +303,17 @@ class PropertyController extends Controller
         ], 404);
     }
 
-    // 2) Images (ONLY image names)
     $images = DB::table('listing_images')
         ->where('listing_id', $listing->id)
         ->orderByRaw('sorting IS NULL, sorting ASC')
         ->pluck('image')
-        ->values(); // ensure clean array indexes
+        ->values();
 
-    // 3) Amenities (ONLY amenity names)
+     $agent_details = DB::table('employees')
+        ->where('crm_name', $listing->agent)
+        ->select(['name', 'slug', 'position', 'profile_picture', 'brn', 'description'])
+        ->first();
+
     $private_amenities = DB::table('private_amenity_listings')
         ->join('private_amenities', 'private_amenities.code', '=', 'private_amenity_listings.amenity_code')
         ->where('private_amenity_listings.listing_reference', $listing->reference)
@@ -327,19 +326,15 @@ class PropertyController extends Controller
         ->pluck('commercial_amenities.name')
         ->values();
 
-    // 4) Build employee object (clean response)
     $employee = [
         'name'            => $listing->employee_name,
         'slug'            => $listing->employee_slug,
         'orn'             => $listing->employee_orn,
-        // 'position'        => $listing->employee_position,
         'profile_picture' => $listing->employee_profile_picture,
         'email'           => $listing->employee_email,
         'phone'           => $listing->employee_phone,
-        // 'whatsapp'        => $listing->employee_whatsapp,
     ];
 
-    // Optional: remove join fields from listing object (so listing stays clean)
     unset(
         $listing->employee_name,
         $listing->employee_slug,
@@ -355,6 +350,7 @@ class PropertyController extends Controller
         'data' => [
             'listing'   => $listing,
             'employee'  => $employee,
+            'agents' => $agent_details,
             'images'    => $images,
             'private_amenities' => $private_amenities,
             'commercial_amenities' => $commercial_amenities,

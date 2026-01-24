@@ -86,6 +86,7 @@ Route::post('/contact-agent', [UserController::class, 'submitContactAgentForm'])
 Route::get('/fetch_developer_data/{slug}', [DeveloperController::class, 'show']);
 Route::get('/fetch_community_data/{slug}', [CommunityController::class, 'show']);
 Route::get('/fetch_projects_from_developer/{slug}', [DeveloperController::class, 'projectsFromDeveloper']);
+Route::post('/fetch_all_projects', [DeveloperController::class, 'fetchAllProjects']);
 Route::get('/fetch_project_details/{slug}', [ProjectController::class, 'show']);
 Route::post(
     '/fetch_projects_from_community',

@@ -8,6 +8,99 @@ use Illuminate\Support\Facades\DB;
 
 class DeveloperController extends Controller
 {
+  public function fetchAllProjects(Request $request)
+{
+    // Safe pagination
+    $perPage = (int) $request->input('per_page', 12);
+    $perPage = max(1, min($perPage, 50));
+
+    $page = (int) $request->input('page', 1);
+    $page = max(1, $page);
+
+    // Search
+    $search = trim((string) $request->input('search', ''));
+
+    $baseQuery = DB::table('projects')
+        ->where('active', 1)
+        ->select(
+            'id as project_id',
+            'name as project_name',
+            'slug as project_slug',
+            'description as project_description',
+            'main_image as project_main_image',
+            'community_name as project_community_name',
+            'starting_price as project_starting_price',
+            'handover as project_handover'
+        );
+
+    // Apply search (only if provided)
+    if ($search !== '') {
+        $baseQuery->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('community_name', 'like', "%{$search}%")
+              ->orWhere('slug', 'like', "%{$search}%")
+              ->orWhere('starting_price', 'like', "%{$search}%")
+              ->orWhere('handover', 'like', "%{$search}%");
+        });
+    }
+
+    $baseQuery->orderByDesc('id');
+
+    // Count AFTER search filters
+    $total = (clone $baseQuery)->count();
+
+    if ($total === 0) {
+        return response()->json([
+            'message' => 'Projects not found.',
+            'projects' => [],
+            'pagination' => [
+                'current_page' => $page,
+                'per_page'     => $perPage,
+                'total'        => 0,
+                'last_page'    => 0,
+                'has_more'     => false,
+            ],
+        ], 404);
+    }
+
+    $rows = $baseQuery
+        ->forPage($page, $perPage)
+        ->get();
+
+    $projects = $rows
+        ->filter(fn ($row) => !is_null($row->project_id))
+        ->map(fn ($row) => [
+            'id'                     => (int) $row->project_id,
+            'name'                   => $row->project_name,
+            'slug'                   => $row->project_slug,
+            'description'            => $row->project_description,
+            'project_main_image'     => $row->project_main_image,
+            'project_community_name' => $row->project_community_name,
+            'project_starting_price' => $row->project_starting_price,
+            'project_handover'       => $row->project_handover,
+        ])
+        ->unique('id')
+        ->values();
+
+    $lastPage = (int) ceil($total / $perPage);
+
+    return response()->json([
+    'data' => [
+        'projects' => $projects,
+        'pagination' => [
+            'current_page' => $page,
+            'per_page'     => $perPage,
+            'total'        => $total,
+            'last_page'    => $lastPage,
+            'has_more'     => $page < $lastPage,
+        ],
+    ],
+    'status' => true,
+    'error' => null,
+    'statusCode' => 200,
+]);
+}
+
     public function show(string $slug)
     {
         $rows = DB::table('developers')

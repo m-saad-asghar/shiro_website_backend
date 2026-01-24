@@ -311,7 +311,7 @@ class PropertyController extends Controller
 
      $agent_details = DB::table('employees')
         ->where('crm_name', $listing->agent)
-        ->select(['name', 'slug', 'position', 'profile_picture', 'brn', 'description'])
+        ->select(['name', 'slug', 'position', 'profile_picture', 'brn', 'description', 'phone', 'whatsapp', 'email'])
         ->first();
 
     $private_amenities = DB::table('private_amenity_listings')

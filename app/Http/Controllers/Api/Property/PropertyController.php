@@ -821,6 +821,8 @@ class PropertyController extends Controller
     $imagesRows = DB::table('listing_images')
         ->select(['listing_id', 'image', 'sorting'])
         ->whereIn('listing_id', $listingIds)
+        ->where('thumbnail', '!=',  1)
+        // ->orderByRaw('CASE WHEN thumbnail = 1 THEN 0 ELSE 1 END')
         ->orderBy('listing_id')
         ->orderBy('sorting')
         ->get();
@@ -1075,12 +1077,22 @@ public function showFeaturedPropertiesWithType(Request $request)
     $listingIds = $listings->pluck('unit_id')->values()->all();
 
     $imagesRows = DB::table('listing_images')
-        ->select(['listing_id', 'image', 'sorting'])
-        ->whereIn('listing_id', $listingIds)
-        ->where('active', 1)
-        // ->orderBy('listing_id')
-        ->orderBy('sorting')
-        ->get();
+     ->select(['listing_id', 'image', 'sorting'])
+    // ->select(['listing_id', 'image', 'sorting', 'thumbnail'])
+    ->whereIn('listing_id', $listingIds)
+    ->where('active', 1)
+    ->where('thumbnail', '!=',  1)
+    // ->orderByRaw('CASE WHEN thumbnail = 1 THEN 0 ELSE 1 END')
+    ->orderBy('sorting', 'asc')
+    ->get();
+
+
+    // $imagesRows = DB::table('listing_images')
+    //     ->select(['listing_id', 'image', 'sorting'])
+    //     ->whereIn('listing_id', $listingIds)
+    //     ->where('active', 1)
+    //     ->orderBy('sorting')
+    //     ->get();
 
     // ✅ Group images by listing_id
     $imagesByListing = [];

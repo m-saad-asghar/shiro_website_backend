@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->append(\App\Http\Middleware\ForceJsonResponse::class);
         $middleware->append(\App\Http\Middleware\Localization::class);
+
+        // API-only middleware (equivalent to Kernel.php api group)
+$middleware->appendToGroup('api', [
+\App\Http\Middleware\ApiCacheHeaders::class,
+]);
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
         return new \App\Exceptions\Handler(app());

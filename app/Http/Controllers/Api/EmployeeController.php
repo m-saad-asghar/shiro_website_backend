@@ -67,7 +67,7 @@ class EmployeeController extends Controller
             'status' => 1,
             'data' => $employees,
             'agents' => $agents,
-        ])->header('Cache-Control', 'public, max-age=3600, s-maxage=3600');;
+        ]);
     }
 
   public function showDetails(string $slug): JsonResponse

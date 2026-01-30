@@ -62,45 +62,40 @@ Route::get('/download-brochure', [ProjectController::class, 'downloadBrochure'])
 
 Route::get('/listing_details/{reference}', [PropertyController::class, 'listingDetails']);
 Route::get('/show_featured_properties', [PropertyController::class, 'showFeaturedProperties']);
-Route::post(
+Route::get(
     '/show_featured_properties_with_type',
     [PropertyController::class, 'showFeaturedPropertiesWithType']
 );
-Route::post('/show_sale_properties', [PropertyController::class, 'showSaleProperties']);
-Route::post('/show_offplan_properties', [PropertyController::class, 'showOffplanProperties']);
-Route::post('/show_rent_properties', [PropertyController::class, 'showRentProperties']);
+Route::get('/show_sale_properties', [PropertyController::class, 'showSaleProperties']);
+Route::get('/show_offplan_properties', [PropertyController::class, 'showOffplanProperties']);
+Route::get('/show_rent_properties', [PropertyController::class, 'showRentProperties']);
 Route::get('/properties/filters', [PropertyController::class, 'getFilterOptions']);
 Route::post('/properties/search', [PropertyController::class, 'searchProperty']);
 Route::post('/properties/search-by-location', [PropertyController::class, 'searchByLocation']);
 Route::get('/properties', [PropertyController::class, 'allProperties']);
 Route::get('/property/show', [PropertyController::class, 'show']);
 Route::get('/property/slug/{slug}', [PropertyController::class, 'showBySlug']);
-Route::post('/get_listing_options', [ListingController::class, 'showListingsOptions']);
+Route::get('/get_listing_options', [ListingController::class, 'showListingsOptions']);
 Route::get('/fetch_property_types', [PropertyController::class, 'fetchPropertyTypes']);
 // routes/api.php
-Route::post('/resolve_search_slugs', [ListingController::class, 'resolveSearchSlugs']);
-
-
+Route::get('/resolve_search_slugs', [ListingController::class, 'resolveSearchSlugs']);
 Route::post('/contact-agent', [UserController::class, 'submitContactAgentForm']);
-
 Route::get('/fetch_developer_data/{slug}', [DeveloperController::class, 'show']);
 Route::get('/fetch_community_data/{slug}', [CommunityController::class, 'show']);
 Route::get('/fetch_projects_from_developer/{slug}', [DeveloperController::class, 'projectsFromDeveloper']);
-Route::post('/fetch_all_projects', [DeveloperController::class, 'fetchAllProjects']);
+Route::get('/fetch_all_projects', [DeveloperController::class, 'fetchAllProjects']);
 Route::get('/fetch_project_details/{slug}', [ProjectController::class, 'show']);
-Route::post(
+Route::get(
     '/fetch_projects_from_community',
     [DeveloperController::class, 'projectsFromCommunity']
 );
-
-
 Route::get('/agents', [AgentDeveloperController::class, 'allAgents']);
 Route::get('/developers', [AgentDeveloperController::class, 'allDevelopers']);
 Route::get('show/developer', [AgentDeveloperController::class, 'show']);
 
 Route::get('/areas', [AreaController::class, 'allAreas']);
 Route::get('/fetch_area_details/{slug}', [AreaController::class, 'fetchAreaDetails']);
-Route::post('/listings_by_slug', [ListingController::class, 'listingsBySlug']);
+Route::get('/listings_by_slug', [ListingController::class, 'listingsBySlug']);
 
 Route::get('/services', [ServiceController::class, 'allServices']);
 Route::get('show/services', [ServiceController::class, 'showService']);
@@ -108,7 +103,7 @@ Route::get('/types', [TypeController::class, 'allTypes']);
 
 Route::get('/fetch_employees', [EmployeeController::class, 'show']);
 Route::get('/fetch_employee_details/{slug}', [EmployeeController::class, 'showDetails']);
-Route::post('/fetch_message_from_founder', [EmployeeController::class, 'messageFromFounder']);
+Route::get('/fetch_message_from_founder', [EmployeeController::class, 'messageFromFounder']);
 Route::get('/fetch_about_us_content', [EmployeeController::class, 'fetchAboutUsContent']);
 
 // Syncing Routes

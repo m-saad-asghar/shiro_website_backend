@@ -29,24 +29,38 @@ class PropertyController extends Controller
 
     public function showOffplanProperties(Request $request)
 {
-    $perPage = (int) $request->input('per_page', 6);
-    if ($perPage <= 0) $perPage = 6;
+    // $perPage = (int) $request->input('per_page', 6);
+    // if ($perPage <= 0) $perPage = 6;
 
-    // enforce 6 items per page max
-    $perPage = min($perPage, 6);
+    // $perPage = min($perPage, 6);
 
-    $page = (int) $request->input('page', 1);
-    if ($page <= 0) $page = 1;
+    // $page = (int) $request->input('page', 1);
+    // if ($page <= 0) $page = 1;
 
-    // ✅ filters from request (SAME AS SALE/RENT)
-    $minPrice     = $request->input('min_price', null);
-    $maxPrice     = $request->input('max_price', null);
-    $bedrooms     = $request->input('bedrooms', null);       // array e.g. ["Studio",2,5,7,"7plus"] or ["7+"]
-    $bathrooms    = $request->input('bathrooms', null);      // array e.g. ["7plus",5] or ["7+"]
-    $search       = $request->input('search', null);         // array of slugs e.g. ["dubai-creek-harbour","azizi-riviera-27"]
-    $propertyType = $request->input('property_type', null);  // slug e.g. "apartment"
+    // $minPrice     = $request->input('min_price', null);
+    // $maxPrice     = $request->input('max_price', null);
+    // $bedrooms     = $request->input('bedrooms', null); 
+    // $bathrooms    = $request->input('bathrooms', null);  
+    // $search       = $request->input('search', null);    
+    // $propertyType = $request->input('property_type', null);
 
-    // query offplan listings and active
+    $perPage = (int) $request->query('per_page', 6);
+if ($perPage <= 0) $perPage = 6;
+$perPage = min($perPage, 6);
+
+
+$page = (int) $request->query('page', 1);
+if ($page <= 0) $page = 1;
+
+
+// ✅ filters from query string
+$minPrice = $request->query('min_price', null);
+$maxPrice = $request->query('max_price', null);
+$bedrooms = $request->query('bedrooms', null); // bedrooms[]=2&bedrooms[]=Studio
+$bathrooms = $request->query('bathrooms', null); // bathrooms[]=2&bathrooms[]=7plus
+$search = $request->query('search', null); // search[]=slug1&search[]=slug2
+$propertyType = $request->query('property_type', null); // property_type=apartment
+
     $query = DB::table('listings')
         ->select([
             'id',
@@ -224,6 +238,7 @@ class PropertyController extends Controller
     $imagesRows = DB::table('listing_images')
         ->select(['listing_id', 'image', 'sorting'])
         ->whereIn('listing_id', $listingIds)
+        ->where('thumbnail', '!=', 1)
         ->orderBy('listing_id')
         ->orderBy('sorting')
         ->get();
@@ -362,24 +377,37 @@ class PropertyController extends Controller
 
    public function showRentProperties(Request $request)
 {
-    $perPage = (int) $request->input('per_page', 6);
-    if ($perPage <= 0) $perPage = 6;
+    // $perPage = (int) $request->input('per_page', 6);
+    // if ($perPage <= 0) $perPage = 6;
+    // $perPage = min($perPage, 6);
 
-    // enforce 6 items per page max
-    $perPage = min($perPage, 6);
+    // $page = (int) $request->input('page', 1);
+    // if ($page <= 0) $page = 1;
 
-    $page = (int) $request->input('page', 1);
-    if ($page <= 0) $page = 1;
+    // $minPrice     = $request->input('min_price', null);
+    // $maxPrice     = $request->input('max_price', null);
+    // $bedrooms     = $request->input('bedrooms', null);   
+    // $bathrooms    = $request->input('bathrooms', null);  
+    // $search       = $request->input('search', null);  
+    // $propertyType = $request->input('property_type', null);
 
-    // ✅ filters from request
-    $minPrice     = $request->input('min_price', null);
-    $maxPrice     = $request->input('max_price', null);
-    $bedrooms     = $request->input('bedrooms', null);      // array e.g. ["Studio",2,5,7,"7plus"]
-    $bathrooms    = $request->input('bathrooms', null);     // array e.g. ["7plus",5]
-    $search       = $request->input('search', null);        // array of slugs e.g. ["dubai-creek-harbour","azizi-riviera-27"]
-    $propertyType = $request->input('property_type', null); // slug e.g. "apartment"
+    $perPage = (int) $request->query('per_page', 6);
+if ($perPage <= 0) $perPage = 6;
+$perPage = min($perPage, 6);
 
-    // query rent listings (property_category = 'Rent') and active
+
+$page = (int) $request->query('page', 1);
+if ($page <= 0) $page = 1;
+
+
+// ✅ filters from query string
+$minPrice = $request->query('min_price', null);
+$maxPrice = $request->query('max_price', null);
+$bedrooms = $request->query('bedrooms', null); // bedrooms[]=2&bedrooms[]=Studio
+$bathrooms = $request->query('bathrooms', null); // bathrooms[]=2&bathrooms[]=7plus
+$search = $request->query('search', null); // search[]=slug1&search[]=slug2
+$propertyType = $request->query('property_type', null); // property_type=apartment
+
     $query = DB::table('listings')
         ->select([
             'id',
@@ -561,6 +589,7 @@ class PropertyController extends Controller
     $imagesRows = DB::table('listing_images')
         ->select(['listing_id', 'image', 'sorting'])
         ->whereIn('listing_id', $listingIds)
+        ->where('thumbnail', '!=', 1)
         ->orderBy('listing_id')
         ->orderBy('sorting')
         ->get();
@@ -619,24 +648,31 @@ class PropertyController extends Controller
 
   public function showSaleProperties(Request $request)
 {
-    $perPage = (int) $request->input('per_page', 6);
-    if ($perPage <= 0) $perPage = 6;
+    // $perPage = (int) $request->input('per_page', 6);
+    // if ($perPage <= 0) $perPage = 6;
+    // $perPage = min($perPage, 6);
 
-    // enforce 6 items per page max
-    $perPage = min($perPage, 6);
+    // $page = (int) $request->input('page', 1);
+    // if ($page <= 0) $page = 1;
 
-    $page = (int) $request->input('page', 1);
-    if ($page <= 0) $page = 1;
+    // $minPrice     = $request->input('min_price', null);
+    // $maxPrice     = $request->input('max_price', null);
+    // $bedrooms     = $request->input('bedrooms', null);   
+    // $bathrooms    = $request->input('bathrooms', null);  
+    // $search       = $request->input('search', null);      
+    // $propertyType = $request->input('property_type', null);
 
-    // ✅ filters from request
-    $minPrice     = $request->input('min_price', null);
-    $maxPrice     = $request->input('max_price', null);
-    $bedrooms     = $request->input('bedrooms', null);     // array e.g. ["Studio",2,5,7,"7plus"]
-    $bathrooms    = $request->input('bathrooms', null);    // array e.g. ["7plus",5]
-    $search       = $request->input('search', null);       // array of slugs e.g. ["dubai-creek-harbour","azizi-riviera-27"]
-    $propertyType = $request->input('property_type', null); // slug e.g. "apartment"
+$perPage = (int) $request->query('per_page', 6);
+$page = (int) $request->query('page', 1);
 
-    // query sale listings (property_category = 'Sale') and active
+
+$minPrice = $request->query('min_price', null);
+$maxPrice = $request->query('max_price', null);
+$bedrooms = $request->query('bedrooms', null);
+$bathrooms = $request->query('bathrooms', null);
+$search = $request->query('search', null);
+$propertyType = $request->query('property_type', null);
+
     $query = DB::table('listings')
         ->select([
             'id',
@@ -821,7 +857,7 @@ class PropertyController extends Controller
     $imagesRows = DB::table('listing_images')
         ->select(['listing_id', 'image', 'sorting'])
         ->whereIn('listing_id', $listingIds)
-        ->where('thumbnail', '!=',  1)
+        ->where('thumbnail', '!=', 1)
         // ->orderByRaw('CASE WHEN thumbnail = 1 THEN 0 ELSE 1 END')
         ->orderBy('listing_id')
         ->orderBy('sorting')
@@ -879,10 +915,9 @@ class PropertyController extends Controller
 
 public function showFeaturedPropertiesWithType(Request $request)
 {
-    // ✅ POST params
-    $reference         = trim((string) $request->input('reference', ''));
-    $propertyCategory  = trim((string) $request->input('property_category', ''));
-    $projectStatus     = trim((string) $request->input('project_status', ''));
+    $reference = trim((string) $request->query('reference', ''));
+$propertyCategory = trim((string) $request->query('property_category', ''));
+$projectStatus = trim((string) $request->query('project_status', ''));
 
     if ($reference === '') {
         return response()->json([
@@ -993,6 +1028,7 @@ public function showFeaturedPropertiesWithType(Request $request)
         ->select(['listing_id', 'image', 'sorting'])
         ->whereIn('listing_id', $listingIds)
         ->where('active', 1)
+        ->where('thumbnail', '!=', 1)
         ->orderBy('sorting')
         ->get();
 

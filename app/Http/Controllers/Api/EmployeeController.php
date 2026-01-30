@@ -22,7 +22,7 @@ class EmployeeController extends Controller
     }
     public function messageFromFounder(Request $request): JsonResponse
 {
-    $name = $request->input('name');
+    $name = $request->query('name');
 
     $data = DB::table('about_us_page')
         ->when($name, function ($query) use ($name) {

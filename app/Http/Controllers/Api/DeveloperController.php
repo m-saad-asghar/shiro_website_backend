@@ -10,15 +10,16 @@ class DeveloperController extends Controller
 {
   public function fetchAllProjects(Request $request)
 {
-    // Safe pagination
     $perPage = (int) $request->input('per_page', 12);
-    $perPage = max(1, min($perPage, 50));
-
     $page = (int) $request->input('page', 1);
-    $page = max(1, $page);
-
-    // Search
     $search = trim((string) $request->input('search', ''));
+    // $perPage = (int) $request->input('per_page', 12);
+    // $perPage = max(1, min($perPage, 50));
+
+    // $page = (int) $request->input('page', 1);
+    // $page = max(1, $page);
+
+    // $search = trim((string) $request->input('search', ''));
 
     $baseQuery = DB::table('projects')
         ->where('active', 1)
@@ -49,19 +50,19 @@ class DeveloperController extends Controller
     // Count AFTER search filters
     $total = (clone $baseQuery)->count();
 
-    if ($total === 0) {
-        return response()->json([
-            'message' => 'Projects not found.',
-            'projects' => [],
-            'pagination' => [
-                'current_page' => $page,
-                'per_page'     => $perPage,
-                'total'        => 0,
-                'last_page'    => 0,
-                'has_more'     => false,
-            ],
-        ], 404);
-    }
+    // if ($total === 0) {
+    //     return response()->json([
+    //         'message' => 'Projects not found.',
+    //         'projects' => [],
+    //         'pagination' => [
+    //             'current_page' => $page,
+    //             'per_page'     => $perPage,
+    //             'total'        => 0,
+    //             'last_page'    => 0,
+    //             'has_more'     => false,
+    //         ],
+    //     ], 404);
+    // }
 
     $rows = $baseQuery
         ->forPage($page, $perPage)
@@ -246,6 +247,7 @@ class DeveloperController extends Controller
     public function projectsFromCommunity(Request $request)
 {
     $community_name = trim((string) $request->input('community_name', ''));
+    // $community_name = trim((string) $request->input('community_name', ''));
 
     if ($community_name === '') {
         return response()->json([

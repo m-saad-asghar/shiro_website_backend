@@ -9,7 +9,7 @@ class ListingController extends Controller
 {
  public function showListingsOptions(Request $request)
 {
-    $searchText = trim((string) $request->input('search_text', ''));
+    $searchText = trim((string) $request->query('search_text', ''));
 
     if ($searchText === '') {
         return response()->json([
@@ -87,7 +87,7 @@ class ListingController extends Controller
 
 public function resolveSearchSlugs(Request $request)
     {
-        $slugs = $request->input('search', []);
+        $slugs = $request->query('search', []);
 
         if (!is_array($slugs) || empty($slugs)) {
             return response()->json([
@@ -148,7 +148,8 @@ public function resolveSearchSlugs(Request $request)
 
 public function listingsBySlug(Request $request)
     {
-        $community_name = trim((string) $request->input('community_name', ''));
+        $community_name = trim((string) $request->query('community_name', ''));
+        // $community_name = trim((string) $request->input('community_name', ''));
 
         if ($community_name === '') {
             return response()->json([

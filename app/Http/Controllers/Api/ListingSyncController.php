@@ -39,7 +39,7 @@ class ListingSyncController extends Controller
                 'order' => [
                     ['column' => 0, 'dir' => 'asc'],
                 ],
-                'page' => 14,
+                // 'page' => 1,
             ]);
 
         if (!$listRes->successful()) {

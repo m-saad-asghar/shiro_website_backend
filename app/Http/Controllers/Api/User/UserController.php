@@ -807,8 +807,6 @@ public function formSubmission(Request $request)
                 ->retry(2, 250)
                 ->post($zapierUrl, $zapPayload);
 
-                return $zapRes->status();
-
             if (!$zapRes->successful()) {
                 Log::warning('Zapier webhook failed', [
                     'status' => $zapRes->status(),

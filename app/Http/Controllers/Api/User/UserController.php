@@ -823,12 +823,23 @@ public function formSubmission(Request $request)
             'status'  => 1,
             'message' => 'Form submitted successfully',
         ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status'  => 0,
-            'message' => 'Something went wrong',
-        ], 500);
-    }
+    } catch (\Throwable $e) {
+
+    \Log::error('CONTACT FORM API FAILED', [
+        'message' => $e->getMessage(),
+        'file'    => $e->getFile(),
+        'line'    => $e->getLine(),
+        'trace'   => substr($e->getTraceAsString(), 0, 2000),
+        'payload' => $request->all(),
+    ]);
+
+    return response()->json([
+        'status'  => 0,
+        'message' => 'Something went wrong',
+        // only show error when debug is true
+        'error'   => config('app.debug') ? $e->getMessage() : null,
+    ], 500);
+}
 }
 
 

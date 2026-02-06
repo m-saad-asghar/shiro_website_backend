@@ -225,7 +225,7 @@ class UserController extends Controller
          * (Same “max” parameters + same Zapier keys as contact form)
          * ============================================================
          */
-        $zapierUrl = config('services.zapier.contact_hook');
+        $zapierUrl = env('ZAPIER_CONTACT_HOOK');
 
         // -------------------------
         // PHONE (use frontend meta)
@@ -800,8 +800,6 @@ public function formSubmission(Request $request)
         // if (config('app.debug') && $request->boolean('debug_payload')) {
         //     return response()->json($zapPayload);
         // }
-
-         $zapierUrl = config('services.zapier.contact_hook');
 
          return $zapierUrl;
 

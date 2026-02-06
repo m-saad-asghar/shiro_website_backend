@@ -225,7 +225,7 @@ class UserController extends Controller
          * (Same “max” parameters + same Zapier keys as contact form)
          * ============================================================
          */
-        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/uly3asc/";
+        $zapierUrl = config('services.zapier.contact_hook');
 
         // -------------------------
         // PHONE (use frontend meta)
@@ -556,7 +556,7 @@ public function formSubmission(Request $request)
          * ✅ ZAPIER BLOCK (UPDATED) — COPY/PASTE
          * ============================================================
          */
-        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/uly3asc/";
+        $zapierUrl = config('services.zapier.contact_hook');
 
         // -------------------------
         // PHONE (use frontend meta)
@@ -801,55 +801,23 @@ public function formSubmission(Request $request)
         //     return response()->json($zapPayload);
         // }
 
-        
+        try {
+            $zapRes = Http::asForm()
+                ->timeout(8)
+                ->retry(2, 250)
+                ->post($zapierUrl, $zapPayload);
 
-        $ch = curl_init();
-
-curl_setopt_array($ch, [
-    CURLOPT_URL => "https://hooks.zapier.com/hooks/catch/24129371/uly3asc",
-    CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => http_build_query($zapPayload),
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 15,
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_SSL_VERIFYPEER => false,   // TEMP
-    CURLOPT_SSL_VERIFYHOST => false,   // TEMP
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/x-www-form-urlencoded',
-    ],
-]);
-
-$response = curl_exec($ch);
-$error    = curl_error($ch);
-$status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-curl_close($ch);
-
-
-Log::info('Zapier CURL result', [
-    'status' => $status,
-    'error' => $error,
-    'response' => $response,
-]);
-
-
-        // try {
-        //     $zapRes = Http::asForm()
-        //         ->timeout(8)
-        //         ->retry(2, 250)
-        //         ->post($zapierUrl, $zapPayload);
-
-        //     if (!$zapRes->successful()) {
-        //         Log::warning('Zapier webhook failed', [
-        //             'status' => $zapRes->status(),
-        //             'body'   => $zapRes->body(),
-        //         ]);
-        //     }
-        // } catch (\Throwable $e) {
-        //     Log::error('Zapier webhook exception', [
-        //         'error' => $e->getMessage(),
-        //     ]);
-        // }
+            if (!$zapRes->successful()) {
+                Log::warning('Zapier webhook failed', [
+                    'status' => $zapRes->status(),
+                    'body'   => $zapRes->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Zapier webhook exception', [
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'status'  => 1,
@@ -858,7 +826,7 @@ Log::info('Zapier CURL result', [
     } catch (\Exception $e) {
         return response()->json([
             'status'  => 0,
-            'message' => 'Something went wrong'
+            'message' => 'Something went wrong',
         ], 500);
     }
 }

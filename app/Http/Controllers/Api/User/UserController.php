@@ -803,6 +803,8 @@ public function formSubmission(Request $request)
 
          $zapierUrl = config('services.zapier.contact_hook');
 
+         return $zapierUrl;
+
         $ch = curl_init();
 
 curl_setopt_array($ch, [

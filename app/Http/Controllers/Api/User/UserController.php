@@ -556,7 +556,7 @@ public function formSubmission(Request $request)
          * ✅ ZAPIER BLOCK (UPDATED) — COPY/PASTE
          * ============================================================
          */
-        $zapierUrl = config('services.zapier.contact_hook');
+        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/uly3asc/";
 
         // -------------------------
         // PHONE (use frontend meta)

@@ -801,10 +801,7 @@ public function formSubmission(Request $request)
         //     return response()->json($zapPayload);
         // }
 
-        $zapRes = Http::asForm()
-                ->timeout(8)
-                ->retry(2, 250)
-                ->post($zapierUrl, $zapPayload);
+      
 
                 return "zapRes";
 

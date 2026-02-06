@@ -801,26 +801,46 @@ public function formSubmission(Request $request)
         //     return response()->json($zapPayload);
         // }
 
-        try {
-           $zapRes = Http::withOptions([
-        'verify' => false,
-    ])
-    ->asForm()
-    ->timeout(15)
-    ->post($zapierUrl, $zapPayload);
+        $ch = curl_init($zapierUrl);
+
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => http_build_query($zapPayload),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 15,
+    CURLOPT_SSL_VERIFYPEER => true,
+]);
+
+$response = curl_exec($ch);
+$error    = curl_error($ch);
+$status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+curl_close($ch);
+
+Log::info('Zapier raw curl', [
+    'status' => $status,
+    'error' => $error,
+    'response' => $response,
+]);
 
 
-            if (!$zapRes->successful()) {
-                Log::warning('Zapier webhook failed', [
-                    'status' => $zapRes->status(),
-                    'body'   => $zapRes->body(),
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Zapier webhook exception', [
-                'error' => $e->getMessage(),
-            ]);
-        }
+        // try {
+        //     $zapRes = Http::asForm()
+        //         ->timeout(8)
+        //         ->retry(2, 250)
+        //         ->post($zapierUrl, $zapPayload);
+
+        //     if (!$zapRes->successful()) {
+        //         Log::warning('Zapier webhook failed', [
+        //             'status' => $zapRes->status(),
+        //             'body'   => $zapRes->body(),
+        //         ]);
+        //     }
+        // } catch (\Throwable $e) {
+        //     Log::error('Zapier webhook exception', [
+        //         'error' => $e->getMessage(),
+        //     ]);
+        // }
 
         return response()->json([
             'status'  => 1,

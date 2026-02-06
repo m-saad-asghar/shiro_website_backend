@@ -803,9 +803,19 @@ public function formSubmission(Request $request)
 
         try {
             $zapRes = Http::asForm()
-                ->timeout(8)
-                ->retry(2, 250)
-                ->post($zapierUrl, $zapPayload);
+        ->timeout(8)
+        ->retry(2, 250)
+        ->post($zapierUrl, $zapPayload);
+
+    // Force response body that you can SEE
+    return response()->json([
+        'reached_here' => true,
+        'zapier_url_exists' => !empty($zapierUrl),
+        'zapier_http_status' => $zapRes->status(),
+        'zapier_ok' => $zapRes->successful(),
+        'zapier_body_length' => strlen($zapRes->body() ?? ''),
+        'zapier_body' => $zapRes->body(),     // can be empty even on success (common)
+    ], 200);
 
             if (!$zapRes->successful()) {
                 Log::warning('Zapier webhook failed', [

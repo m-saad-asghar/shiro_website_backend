@@ -803,53 +803,53 @@ public function formSubmission(Request $request)
 
         
 
-//         $ch = curl_init();
+        $ch = curl_init();
 
-// curl_setopt_array($ch, [
-//     CURLOPT_URL => $zapierUrl,
-//     CURLOPT_POST => true,
-//     CURLOPT_POSTFIELDS => http_build_query($zapPayload),
-//     CURLOPT_RETURNTRANSFER => true,
-//     CURLOPT_TIMEOUT => 15,
-//     CURLOPT_CONNECTTIMEOUT => 10,
-//     CURLOPT_SSL_VERIFYPEER => false,   // TEMP
-//     CURLOPT_SSL_VERIFYHOST => false,   // TEMP
-//     CURLOPT_HTTPHEADER => [
-//         'Content-Type: application/x-www-form-urlencoded',
-//     ],
-// ]);
+curl_setopt_array($ch, [
+    CURLOPT_URL => $zapierUrl,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => http_build_query($zapPayload),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 15,
+    CURLOPT_CONNECTTIMEOUT => 10,
+    CURLOPT_SSL_VERIFYPEER => false,   // TEMP
+    CURLOPT_SSL_VERIFYHOST => false,   // TEMP
+    CURLOPT_HTTPHEADER => [
+        'Content-Type: application/x-www-form-urlencoded',
+    ],
+]);
 
-// $response = curl_exec($ch);
-// $error    = curl_error($ch);
-// $status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$response = curl_exec($ch);
+$error    = curl_error($ch);
+$status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-// curl_close($ch);
-
-
-// Log::info('Zapier CURL result', [
-//     'status' => $status,
-//     'error' => $error,
-//     'response' => $response,
-// ]);
+curl_close($ch);
 
 
-        try {
-            $zapRes = Http::asForm()
-                ->timeout(8)
-                ->retry(2, 250)
-                ->post($zapierUrl, $zapPayload);
+Log::info('Zapier CURL result', [
+    'status' => $status,
+    'error' => $error,
+    'response' => $response,
+]);
 
-            if (!$zapRes->successful()) {
-                Log::warning('Zapier webhook failed', [
-                    'status' => $zapRes->status(),
-                    'body'   => $zapRes->body(),
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Zapier webhook exception', [
-                'error' => $e->getMessage(),
-            ]);
-        }
+
+        // try {
+        //     $zapRes = Http::asForm()
+        //         ->timeout(8)
+        //         ->retry(2, 250)
+        //         ->post($zapierUrl, $zapPayload);
+
+        //     if (!$zapRes->successful()) {
+        //         Log::warning('Zapier webhook failed', [
+        //             'status' => $zapRes->status(),
+        //             'body'   => $zapRes->body(),
+        //         ]);
+        //     }
+        // } catch (\Throwable $e) {
+        //     Log::error('Zapier webhook exception', [
+        //         'error' => $e->getMessage(),
+        //     ]);
+        // }
 
         return response()->json([
             'status'  => 1,

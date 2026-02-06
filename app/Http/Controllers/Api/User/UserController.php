@@ -802,10 +802,13 @@ public function formSubmission(Request $request)
         // }
 
         try {
-            $zapRes = Http::asForm()
-                ->timeout(8)
-                ->retry(2, 250)
-                ->post($zapierUrl, $zapPayload);
+           $zapRes = Http::withOptions([
+        'verify' => false,
+    ])
+    ->asForm()
+    ->timeout(15)
+    ->post($zapierUrl, $zapPayload);
+
 
             if (!$zapRes->successful()) {
                 Log::warning('Zapier webhook failed', [
@@ -823,18 +826,10 @@ public function formSubmission(Request $request)
             'status'  => 1,
             'message' => 'Form submitted successfully',
         ]);
-    } catch (\Throwable $e) {
-        Log::error('formSubmission crashed', [
-            'message' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ]);
-
+    } catch (\Exception $e) {
         return response()->json([
-            'status' => 0,
-            'message' => $e->getMessage(),
-            'file' => basename($e->getFile()),
-            'line' => $e->getLine(),
+            'status'  => 0,
+            'message' => 'Something went wrong'
         ], 500);
     }
 }

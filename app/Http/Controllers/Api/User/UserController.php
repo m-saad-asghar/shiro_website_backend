@@ -793,7 +793,7 @@ public function formSubmission(Request $request)
             'Phone E164' => (string) ($request->input('phone_e164') ?: ''),
         ];
 
-        return $zapPayload;
+        // return $zapPayload;
 
         // ✅ IMPORTANT: remove the old "return $zapPayload;" so Zapier runs
         // If you want to debug payload: add ?debug_payload=1 in request (only works in app.debug=true)
@@ -803,8 +803,8 @@ public function formSubmission(Request $request)
 
         try {
             $zapRes = Http::asForm()
-                ->timeout(8)
-                ->retry(2, 250)
+                ->timeout(12)
+                ->retry(5, 250)
                 ->post($zapierUrl, $zapPayload);
 
             if (!$zapRes->successful()) {
@@ -812,6 +812,8 @@ public function formSubmission(Request $request)
                     'status' => $zapRes->status(),
                     'body'   => $zapRes->body(),
                 ]);
+            }else {
+                return "zapier fail";
             }
         } catch (\Throwable $e) {
             Log::error('Zapier webhook exception', [

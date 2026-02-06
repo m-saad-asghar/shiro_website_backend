@@ -225,7 +225,7 @@ class UserController extends Controller
          * (Same “max” parameters + same Zapier keys as contact form)
          * ============================================================
          */
-        $zapierUrl = env('ZAPIER_CONTACT_HOOK');
+        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/uly3asc/";
 
         // -------------------------
         // PHONE (use frontend meta)

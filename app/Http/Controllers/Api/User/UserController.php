@@ -801,27 +801,25 @@ public function formSubmission(Request $request)
         //     return response()->json($zapPayload);
         // }
 
-      
+        try {
+            $zapRes = Http::asForm()
+                ->timeout(8)
+                ->retry(2, 250)
+                ->post($zapierUrl, $zapPayload);
 
-                return "zapRes";
+                return $zapRes->status();
 
-        // try {
-        //     $zapRes = Http::asForm()
-        //         ->timeout(8)
-        //         ->retry(2, 250)
-        //         ->post($zapierUrl, $zapPayload);
-
-        //     if (!$zapRes->successful()) {
-        //         Log::warning('Zapier webhook failed', [
-        //             'status' => $zapRes->status(),
-        //             'body'   => $zapRes->body(),
-        //         ]);
-        //     }
-        // } catch (\Throwable $e) {
-        //     Log::error('Zapier webhook exception', [
-        //         'error' => $e->getMessage(),
-        //     ]);
-        // }
+            if (!$zapRes->successful()) {
+                Log::warning('Zapier webhook failed', [
+                    'status' => $zapRes->status(),
+                    'body'   => $zapRes->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Zapier webhook exception', [
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'status'  => 1,
@@ -831,6 +829,7 @@ public function formSubmission(Request $request)
         return response()->json([
             'status'  => 0,
             'message' => 'Something went wrong',
+            "debug" => $zapRes->status(),
         ], 500);
     }
 }

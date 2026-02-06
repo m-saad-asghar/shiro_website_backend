@@ -793,13 +793,15 @@ public function formSubmission(Request $request)
             'Phone E164' => (string) ($request->input('phone_e164') ?: ''),
         ];
 
-        return $zapierUrl;
+        // return $zapPayload;
 
         // ✅ IMPORTANT: remove the old "return $zapPayload;" so Zapier runs
         // If you want to debug payload: add ?debug_payload=1 in request (only works in app.debug=true)
         // if (config('app.debug') && $request->boolean('debug_payload')) {
         //     return response()->json($zapPayload);
         // }
+
+         $zapierUrl = config('services.zapier.contact_hook');
 
         $ch = curl_init();
 

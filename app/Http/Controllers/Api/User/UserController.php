@@ -801,14 +801,20 @@ public function formSubmission(Request $request)
         //     return response()->json($zapPayload);
         // }
 
-        $ch = curl_init($zapierUrl);
+        $ch = curl_init();
 
 curl_setopt_array($ch, [
+    CURLOPT_URL => $zapierUrl,
     CURLOPT_POST => true,
     CURLOPT_POSTFIELDS => http_build_query($zapPayload),
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 15,
-    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_CONNECTTIMEOUT => 10,
+    CURLOPT_SSL_VERIFYPEER => false,   // TEMP
+    CURLOPT_SSL_VERIFYHOST => false,   // TEMP
+    CURLOPT_HTTPHEADER => [
+        'Content-Type: application/x-www-form-urlencoded',
+    ],
 ]);
 
 $response = curl_exec($ch);
@@ -817,7 +823,8 @@ $status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
 curl_close($ch);
 
-Log::info('Zapier raw curl', [
+// OPTIONAL DEBUG (TEMP)
+Log::info('Zapier CURL result', [
     'status' => $status,
     'error' => $error,
     'response' => $response,

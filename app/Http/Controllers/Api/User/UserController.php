@@ -793,7 +793,7 @@ public function formSubmission(Request $request)
             'Phone E164' => (string) ($request->input('phone_e164') ?: ''),
         ];
 
-        // return $zapPayload;
+        return $zapPayload;
 
         // ✅ IMPORTANT: remove the old "return $zapPayload;" so Zapier runs
         // If you want to debug payload: add ?debug_payload=1 in request (only works in app.debug=true)
@@ -823,23 +823,12 @@ public function formSubmission(Request $request)
             'status'  => 1,
             'message' => 'Form submitted successfully',
         ]);
-    } catch (\Throwable $e) {
-
-    \Log::error('CONTACT FORM API FAILED', [
-        'message' => $e->getMessage(),
-        'file'    => $e->getFile(),
-        'line'    => $e->getLine(),
-        'trace'   => substr($e->getTraceAsString(), 0, 2000),
-        'payload' => $request->all(),
-    ]);
-
-    return response()->json([
-        'status'  => 0,
-        'message' => 'Something went wrong',
-        // only show error when debug is true
-        'error'   => config('app.debug') ? $e->getMessage() : null,
-    ], 500);
-}
+    } catch (\Exception $e) {
+        return response()->json([
+            'status'  => 0,
+            'message' => 'Something went wrong',
+        ], 500);
+    }
 }
 
 

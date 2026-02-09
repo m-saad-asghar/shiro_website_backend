@@ -226,7 +226,7 @@ class UserController extends Controller
          * ============================================================
          */
         // $zapierUrl = config('services.zapier.contact_hook');
-        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/uebgsb4";
+        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/ueh0k8v";
 
         // -------------------------
         // PHONE (use frontend meta)
@@ -471,7 +471,7 @@ class UserController extends Controller
                 ->timeout(8)
                 ->retry(2, 250)
                 // ->post($zapierUrl, $zapPayload);
-                ->post("https://hooks.zapier.com/hooks/catch/24129371/uebgsb4", $zapPayload);
+                ->post("https://hooks.zapier.com/hooks/catch/24129371/ueh0k8v", $zapPayload);
 
             if (!$zapRes->successful()) {
                 Log::warning('Zapier webhook failed (callback)', [
@@ -558,7 +558,7 @@ public function formSubmission(Request $request)
          * ✅ ZAPIER BLOCK (UPDATED) — COPY/PASTE
          * ============================================================
          */
-        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/uebgsb4";
+        $zapierUrl = "https://hooks.zapier.com/hooks/catch/24129371/ueh0k8v";
 
         // -------------------------
         // PHONE (use frontend meta)
@@ -807,7 +807,7 @@ public function formSubmission(Request $request)
             $zapRes = Http::asForm()
                 ->timeout(8)
                 ->retry(2, 250)
-                ->post("https://hooks.zapier.com/hooks/catch/24129371/uebgsb4", $zapPayload);
+                ->post("https://hooks.zapier.com/hooks/catch/24129371/ueh0k8v", $zapPayload);
                 // ->post($zapierUrl, $zapPayload);
 
             if (!$zapRes->successful()) {

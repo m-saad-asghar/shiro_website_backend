@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\ProjectController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\NotificationController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -45,7 +46,7 @@ Route::prefix('static')->controller(StaticController::class)->group(function () 
     Route::get('region', 'allRegion');
     Route::get('reviews', 'allReviews');
 });
-
+Route::post('/send-email-notification', [NotificationController::class, 'sendEmail']);
 Route::post('/contact/submit', [UserController::class, 'submitContactForm']);
 Route::post('/form_submission', [UserController::class, 'formSubmission']);
 Route::post('/form_submission_get_a_call', [UserController::class, 'formSubmissionGetACall']);

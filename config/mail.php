@@ -97,16 +97,27 @@ return [
             'retry_after' => 60,
         ],
 
-        'smtp' => [
+      'smtp' => [
     'transport' => 'smtp',
-    'host' => env('MAIL_HOST'),
-    'port' => env('MAIL_PORT'),
-    'encryption' => env('MAIL_ENCRYPTION'),
+    'host' => env('MAIL_HOST', 'smtp.gmail.com'),
+    'port' => env('MAIL_PORT', 465),
+    'encryption' => env('MAIL_ENCRYPTION', 'ssl'),
     'username' => env('MAIL_USERNAME'),
     'password' => env('MAIL_PASSWORD'),
     'timeout' => null,
     'auth_mode' => null,
+
+    // IMPORTANT: force CA file
+    'stream' => [
+        'ssl' => [
+            'cafile' => '/etc/pki/tls/certs/ca-bundle.crt',
+            'verify_peer' => true,
+            'verify_peer_name' => true,
+            'allow_self_signed' => false,
+        ],
+    ],
 ],
+
 
         
         

@@ -32,6 +32,16 @@ class NotificationController extends Controller
             ], 413);
         }
 
+        Log::info('MAIL DEBUG', [
+  'mailer' => config('mail.default'),
+  'host' => config('mail.mailers.smtp.host'),
+  'port' => config('mail.mailers.smtp.port'),
+  'enc'  => config('mail.mailers.smtp.encryption'),
+  'user' => config('mail.mailers.smtp.username'),
+  'from' => config('mail.from.address'),
+]);
+
+
         try {
             $to = 'enquiry@shiroestate.ae';
 

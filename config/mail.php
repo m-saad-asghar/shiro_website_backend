@@ -110,9 +110,9 @@ return [
     // IMPORTANT: force CA file
     'stream' => [
         'ssl' => [
-            'cafile' => '/etc/pki/tls/certs/ca-bundle.crt',
-            'verify_peer' => true,
-            'verify_peer_name' => true,
+            // 'cafile' => '/etc/pki/tls/certs/ca-bundle.crt',
+            'verify_peer' => false,
+            'verify_peer_name' => false,
             'allow_self_signed' => false,
         ],
     ],

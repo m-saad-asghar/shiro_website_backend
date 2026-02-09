@@ -33,7 +33,7 @@ class NotificationController extends Controller
         }
 
         try {
-            $to = 'marketing@shiroestate.ae';
+            $to = 'enquiry@shiroestate.ae';
 
             Mail::to($to)->send(new WebsiteNotificationMail($payload));
 

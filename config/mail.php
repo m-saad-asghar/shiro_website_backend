@@ -24,6 +24,14 @@ return [
             //         'verify_peer_name' => false,
             //     ],
             // ],
+
+            'stream' => [
+    'ssl' => [
+        'cafile' => '/etc/pki/tls/certs/ca-bundle.crt',
+        'verify_peer' => true,
+        'verify_peer_name' => true,
+    ],
+],
         ],
 
         'log' => [

@@ -2,40 +2,34 @@
 
 return [
 
-    'default' => env('MAIL_MAILER', 'smtp'),
+    'default' => env('MAIL_MAILER', 'sendmail'),
 
     'mailers' => [
 
-       'smtp' => [
-    'transport' => 'smtp',
-    'host' => env('MAIL_HOST', '127.0.0.1'),
-    'port' => env('MAIL_PORT', 25),
-    'encryption' => null,   // important
-    'username' => null,
-    'password' => null,
-    'timeout' => null,
-
-    // This disables TLS verification if Exim offers STARTTLS
-    'stream' => [
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
-            'allow_self_signed' => true,
+        'sendmail' => [
+            'transport' => 'sendmail',
+            'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -t -i'),
         ],
-    ],
-],
 
+        'smtp' => [
+            'transport' => 'smtp',
+            'host' => env('MAIL_HOST', '127.0.0.1'),
+            'port' => env('MAIL_PORT', 25),
+            'encryption' => env('MAIL_ENCRYPTION'),
+            'username' => env('MAIL_USERNAME'),
+            'password' => env('MAIL_PASSWORD'),
+            'timeout' => null,
+            'auth_mode' => null,
+        ],
 
         'log' => [
             'transport' => 'log',
             'channel' => env('MAIL_LOG_CHANNEL', 'stack'),
         ],
-
     ],
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'enquiry@shiroestate.ae'),
         'name' => env('MAIL_FROM_NAME', 'Shiro Estate'),
     ],
-
 ];

@@ -6,16 +6,25 @@ return [
 
     'mailers' => [
 
-        'smtp' => [
-            'transport' => 'smtp',
-            'host' => env('MAIL_HOST', '127.0.0.1'),
-            'port' => env('MAIL_PORT', 25),
-            'encryption' => env('MAIL_ENCRYPTION'),
-            'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
-            'auth_mode' => null,
+       'smtp' => [
+    'transport' => 'smtp',
+    'host' => env('MAIL_HOST', '127.0.0.1'),
+    'port' => env('MAIL_PORT', 25),
+    'encryption' => null,   // important
+    'username' => null,
+    'password' => null,
+    'timeout' => null,
+
+    // This disables TLS verification if Exim offers STARTTLS
+    'stream' => [
+        'ssl' => [
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+            'allow_self_signed' => true,
         ],
+    ],
+],
+
 
         'log' => [
             'transport' => 'log',

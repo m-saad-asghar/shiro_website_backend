@@ -25,13 +25,14 @@ return [
             //     ],
             // ],
 
-            'stream' => [
-    'ssl' => [
-        'cafile' => '/etc/pki/tls/certs/ca-bundle.crt',
-        'verify_peer' => true,
-        'verify_peer_name' => true,
-    ],
+          'stream' => [
+  'ssl' => [
+    'verify_peer' => false,
+    'verify_peer_name' => false,
+    'allow_self_signed' => true,
+  ],
 ],
+
         ],
 
         'log' => [

@@ -183,8 +183,6 @@ class AdminAuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-         return $user;
-
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Invalid credentials.'],
@@ -197,6 +195,8 @@ class AdminAuthController extends Controller
             'message' => 'User is deactivated.',
             ], 403);
         }
+
+         return "user";
 
         $tokenResult = $user->createToken('admin-panel');
         $accessToken = $tokenResult->accessToken;

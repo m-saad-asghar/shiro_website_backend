@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // API-only middleware (equivalent to Kernel.php api group)
 $middleware->appendToGroup('api', [
+    \Illuminate\Http\Middleware\HandleCors::class,
 \App\Http\Middleware\ApiCacheHeaders::class,
 ]);
 

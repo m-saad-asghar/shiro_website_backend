@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-class Developer extends BaseModel
+class Developer extends Model
 {
     protected $fillable = [
         'name' => 'name',
@@ -16,16 +16,16 @@ class Developer extends BaseModel
         'description_bottom'=>'description_bottom',
     ];
 
-    protected $casts = [
-        'contact_inf' => 'array',
-    ];
-    protected $translatable = [
-        'name',
-        'contact_inf',
-        'description',
-        'description_top',
-        'description_bottom',
-    ];
+    // protected $casts = [
+    //     'contact_inf' => 'array',
+    // ];
+    // protected $translatable = [
+    //     'name',
+    //     'contact_inf',
+    //     'description',
+    //     'description_top',
+    //     'description_bottom',
+    // ];
 
     public function properties()
     {

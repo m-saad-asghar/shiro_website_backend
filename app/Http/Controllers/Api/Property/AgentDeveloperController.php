@@ -9,6 +9,7 @@ use App\Http\Traits\GeneralTrait;
 use App\Models\Agent;
 use App\Models\Developer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AgentDeveloperController extends Controller
 {
@@ -44,22 +45,38 @@ class AgentDeveloperController extends Controller
     }
 
 
-
-    public function allDevelopers(Request $request)
-    {
-        try {
-            $developers = Developer::when($request->filled('search'), function ($query) use ($request) {
-                $query->where('name', 'LIKE', '%' . $request->search . '%');
+public function allDevelopers(Request $request)
+{
+    try {
+        $developers = DB::table('developers')
+            ->select([
+                'id',
+                'name',
+                'slug',
+                'email',
+                'contact_inf',
+                'logo',
+                'thumbnail',
+                'description',
+                'description_top',
+                'description_bottom',
+                'active',
+                'created_at',
+                'updated_at',
+            ])
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $q->where('name', 'LIKE', '%' . $request->search . '%');
             })
-                ->get();
+            ->where('active', 1)
+            ->get();
 
-            return $this->apiResponse([
-                'developers' => DeveloperResource::collection($developers),
-            ]);
-        } catch (\Exception $e) {
-            return $this->handleException($e);
-        }
+        return $this->apiResponse([
+            'developers' => $developers, // same structure
+        ]);
+    } catch (\Exception $e) {
+        return $this->handleException($e);
     }
+}
 
     public function show(Request $request)
     {

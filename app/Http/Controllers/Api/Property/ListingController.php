@@ -4,9 +4,139 @@ namespace App\Http\Controllers\Api\Property;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Validator;
 
 class ListingController extends Controller
 {
+    public function changeStatusListing(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'reference' => ['required', 'string', 'max:255'],
+            'active'    => ['required', 'integer', 'in:0,1'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $reference = trim((string) $request->input('reference'));
+        $active    = (int) $request->input('active');
+
+        try {
+            // Update by reference
+            $updated = DB::table('listings')
+                ->where('reference', $reference)
+                ->update([
+                    'active'     => $active,
+                    'updated_at' => now(),
+                ]);
+
+            if ($updated === 0) {
+                // Either not found OR same value already set.
+                // Check existence to return correct message.
+                $exists = DB::table('listings')->where('reference', $reference)->exists();
+
+                if (!$exists) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Listing not found for given reference',
+                    ], 404);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No change (already same status)',
+                    'data'    => [
+                        'reference' => $reference,
+                        'active'    => $active,
+                    ],
+                ], 200);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Listing status updated successfully',
+                'data'    => [
+                    'reference' => $reference,
+                    'active'    => $active,
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Server error while updating listing status',
+                // Optional: hide this in production
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+    public function fetch_all_listings(Request $request)
+{
+    // ✅ Inputs
+    $perPage = (int) $request->get('per_page', 10);
+    $page    = (int) $request->get('page', 1);
+    $search  = trim((string) $request->get('search', ''));
+
+    // ✅ Clamp per_page (avoid idiots / heavy loads)
+    if ($perPage < 1) $perPage = 10;
+    if ($perPage > 100) $perPage = 100;
+
+    // ✅ Base query: select only requested columns
+    $query = DB::table('listings')->select([
+        'id',
+        'reference',
+        'property_t',
+        'price',
+        'community',
+        'sub_community',
+        'property',
+        'property_type',
+        'property_category',
+        'title',
+        'active',
+        'furnishing',
+        'created_at',
+
+        // ✅ First image (lowest sorting) from listing_images
+        DB::raw("(
+            SELECT li.image
+            FROM listing_images li
+            WHERE li.listing_id = listings.id
+              AND li.active = 1
+            ORDER BY (li.sorting IS NULL) ASC, li.sorting ASC, li.id ASC
+            LIMIT 1
+        ) AS first_image"),
+    ]);
+
+    // ✅ Search by reference (partial match)
+    if ($search !== '') {
+        $query->where('reference', 'LIKE', '%' . $search . '%');
+    }
+
+    // ✅ Sort newest first (you can change)
+    $query->orderByDesc('id');
+
+    // ✅ Pagination
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Listings fetched successfully',
+        'data' => $paginator->items(),
+        'pagination' => [
+            'current_page' => $paginator->currentPage(),
+            'last_page'    => $paginator->lastPage(),
+            'per_page'     => $paginator->perPage(),
+            'total'        => $paginator->total(),
+        ],
+    ], 200);
+}
+
  public function showListingsOptions(Request $request)
 {
     $searchText = trim((string) $request->query('search_text', ''));

@@ -5,9 +5,332 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class DeveloperController extends Controller
 {
+    public function updateDeveloper(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'developer_id'     => ['required', 'integer', 'min:1'],
+            'name'             => ['required', 'string', 'max:255'],
+            'slug'             => ['required', 'string', 'max:256'],
+            'email'            => ['nullable', 'email', 'max:255'],
+            'description'      => ['required', 'string'],
+            'active'           => ['nullable', 'in:0,1'],
+
+            // optional file updates
+            'logo'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'thumbnail'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+
+            // flags
+            'remove_logo'      => ['nullable', 'in:0,1'],
+            'remove_thumbnail' => ['nullable', 'in:0,1'],
+        ], [
+            'developer_id.required' => 'Developer id is required',
+            'name.required'         => 'Name is required',
+            'slug.required'         => 'Slug is required',
+            'description.required'  => 'Description is required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $developerId   = (int) $request->input('developer_id');
+        $name          = trim($request->input('name'));
+        $rawSlug       = trim($request->input('slug'));
+        $email         = $request->filled('email') ? trim($request->input('email')) : null;
+        $description   = (string) $request->input('description');
+        $active        = (int) $request->input('active', 1);
+        $removeLogo    = (int) $request->input('remove_logo', 0) === 1;
+        $removeThumb   = (int) $request->input('remove_thumbnail', 0) === 1;
+
+        // normalize slug
+        $slug = Str::slug($rawSlug);
+        if ($slug === '') {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors'  => ['slug' => ['Slug is required']],
+            ], 422);
+        }
+
+        $existing = DB::table('developers')->where('id', $developerId)->first();
+        if (!$existing) {
+            return response()->json([
+                'message' => 'Developer not found',
+            ], 404);
+        }
+
+        // unique slug check (ignore current row)
+        $slugExists = DB::table('developers')
+            ->where('slug', $slug)
+            ->where('id', '!=', $developerId)
+            ->exists();
+
+        if ($slugExists) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors'  => ['slug' => ['Slug already exists']],
+            ], 422);
+        }
+
+        // prepare updates
+        $update = [
+            'name'        => $name,
+            'slug'        => $slug,
+            'email'       => $email,
+            'description' => $description,
+            'active'      => $active,
+            'updated_at'  => now(),
+        ];
+
+        // We store files in storage/app/public/ (ROOT), and DB stores ONLY filename.
+        // Public URL becomes: /storage/<filename>
+        $newLogoName = null;
+        $newThumbName = null;
+
+        try {
+            DB::beginTransaction();
+
+            // --- LOGO logic ---
+            if ($request->hasFile('logo')) {
+                $logoFile = $request->file('logo');
+                $ext = strtolower($logoFile->getClientOriginalExtension());
+                $base = Str::slug($name) ?: 'developer';
+                $newLogoName = "{$base}_logo_" . time() . "_" . Str::random(6) . ".{$ext}";
+
+                // store in public disk root
+                Storage::disk('public')->putFileAs('', $logoFile, $newLogoName);
+
+                // update db filename
+                $update['logo'] = $newLogoName;
+
+                // delete old logo file (if exists)
+                if (!empty($existing->logo)) {
+                    Storage::disk('public')->delete($existing->logo);
+                }
+            } elseif ($removeLogo) {
+                // remove logo
+                $update['logo'] = null;
+                if (!empty($existing->logo)) {
+                    Storage::disk('public')->delete($existing->logo);
+                }
+            }
+
+            // --- THUMBNAIL logic ---
+            if ($request->hasFile('thumbnail')) {
+                $thumbFile = $request->file('thumbnail');
+                $ext = strtolower($thumbFile->getClientOriginalExtension());
+                $base = Str::slug($name) ?: 'developer';
+                $newThumbName = "{$base}_thumb_" . time() . "_" . Str::random(6) . ".{$ext}";
+
+                Storage::disk('public')->putFileAs('', $thumbFile, $newThumbName);
+
+                $update['thumbnail'] = $newThumbName;
+
+                if (!empty($existing->thumbnail)) {
+                    Storage::disk('public')->delete($existing->thumbnail);
+                }
+            } elseif ($removeThumb) {
+                $update['thumbnail'] = null;
+                if (!empty($existing->thumbnail)) {
+                    Storage::disk('public')->delete($existing->thumbnail);
+                }
+            }
+
+            DB::table('developers')->where('id', $developerId)->update($update);
+
+            $developer = DB::table('developers')->where('id', $developerId)->first();
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Developer updated successfully',
+                'data'    => $developer,
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            // cleanup newly uploaded files if something failed after upload
+            if ($newLogoName) Storage::disk('public')->delete($newLogoName);
+            if ($newThumbName) Storage::disk('public')->delete($newThumbName);
+
+            return response()->json([
+                'message' => 'Server error',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+    public function getDeveloper(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'developer_id' => ['required', 'integer', 'min:1'],
+        ], [
+            'developer_id.required' => 'Developer id is required',
+            'developer_id.integer'  => 'Developer id must be an integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $id = (int) $request->query('developer_id');
+
+        $developer = DB::table('developers')
+            ->select([
+                'id',
+                'name',
+                'slug',
+                'email',
+                'logo',              // ✅ filename only
+                'thumbnail',         // ✅ filename only
+                'description',
+                'description_top',
+                'description_bottom',
+                'contact_inf',
+                'active',
+                'created_at',
+                'updated_at',
+            ])
+            ->where('id', $id)
+            ->first();
+
+        if (!$developer) {
+            return response()->json([
+                'message' => 'Developer not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $developer,
+        ], 200);
+    }
+   public function createDeveloper(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'name'        => ['required', 'string', 'max:255'],
+        'slug'        => ['required', 'string', 'max:256'],
+        'email'       => ['nullable', 'email', 'max:255'],
+        'description' => ['required', 'string'],
+        'active'      => ['nullable', 'in:0,1'],
+        'logo'        => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        'thumbnail'   => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+    ], [
+        'name.required'        => 'Name is required',
+        'slug.required'        => 'Slug is required',
+        'description.required' => 'Description is required',
+        'logo.required'        => 'Logo is required',
+        'thumbnail.required'   => 'Thumbnail is required',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors'  => $validator->errors(),
+        ], 422);
+    }
+
+    $name        = trim($request->input('name'));
+    $rawSlug     = trim($request->input('slug'));
+    $email       = $request->filled('email') ? trim($request->input('email')) : null;
+    $description = $request->input('description');
+    $active      = (int) $request->input('active', 1);
+
+    // ✅ Force clean slug
+    $slug = Str::slug($rawSlug);
+    if ($slug === '') {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors'  => ['slug' => ['Slug is required']],
+        ], 422);
+    }
+
+    // ✅ Unique check (DB)
+    $slugExists = DB::table('developers')->where('slug', $slug)->exists();
+    if ($slugExists) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors'  => ['slug' => ['Slug already exists']],
+        ], 422);
+    }
+
+    // ---------- Store files ----------
+    $logoFile  = $request->file('logo');
+    $thumbFile = $request->file('thumbnail');
+
+    $logoExt  = $logoFile->getClientOriginalExtension();
+    $thumbExt = $thumbFile->getClientOriginalExtension();
+
+    $base = Str::slug($name) ?: 'developer';
+    $ts   = time();
+
+    $logoName  = "{$base}_logo_{$ts}." . $logoExt;
+    $thumbName = "{$base}_thumb_{$ts}." . $thumbExt;
+
+    // stored in: storage/app/public/developers/...
+    $logoPath  = $logoFile->storeAs('', $logoName, 'public');
+    $thumbPath = $thumbFile->storeAs('', $thumbName, 'public');
+
+
+  // Save only file names in DB
+$logoDbName  = $logoName;
+$thumbDbName = $thumbName;
+
+
+    try {
+        DB::beginTransaction();
+
+        // ✅ insert + get id
+        $id = DB::table('developers')->insertGetId([
+            'name'               => $name,
+            'slug'               => $slug,
+            'email'              => $email,
+            'contact_inf'        => null,
+            'logo'               => $logoDbName,
+            'thumbnail'          => $thumbDbName,
+            'description'        => $description,
+            'description_top'    => null,
+            'description_bottom' => null,
+            'active'             => $active,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        $developer = DB::table('developers')->where('id', $id)->first();
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Developer created successfully',
+            'data'    => $developer,
+        ], 200);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        // ✅ cleanup uploaded files if db insert fails
+        if (!empty($logoPath)) {
+            Storage::disk('public')->delete($logoPath);
+        }
+        if (!empty($thumbPath)) {
+            Storage::disk('public')->delete($thumbPath);
+        }
+
+        return response()->json([
+            'message' => 'Server error',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+}
   public function fetchAllProjects(Request $request)
 {
     $perPage = (int) $request->input('per_page', 12);
@@ -339,6 +662,75 @@ class DeveloperController extends Controller
             'faqs'     => $faqs, // ✅ added
         ],
     ], 200);
+}
+
+   public function fetchDevelopers(Request $request)
+{
+    $perPage = (int) $request->query('per_page', 10);
+    $perPage = max(1, min($perPage, 100));
+
+    $page = (int) $request->query('page', 1);
+    $search = trim($request->query('search', ''));
+
+    $query = DB::table('developers')
+        ->select([
+            'id',
+            'name',
+            'email',
+            'logo',
+            'thumbnail',
+            'active',
+            'created_at',
+            'updated_at',
+        ]);
+
+    // 🔍 Search Support (first_name + last_name)
+    if (!empty($search)) {
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'LIKE', "%{$search}%");
+        });
+    }
+
+    $users = $query
+        ->orderByDesc('id')
+        ->paginate($perPage, ['*'], 'page', $page);
+
+    return response()->json([
+        'success' => true,
+        'data' => $users->items(),
+        'pagination' => [
+            'current_page' => $users->currentPage(),
+            'last_page'    => $users->lastPage(),
+            'per_page'     => $users->perPage(),
+            'total'        => $users->total(),
+        ]
+    ]);
+}
+
+ public function changeStatusDeveloper(Request $request)
+{
+      $validator = Validator::make($request->all(), [
+        'developer_id' => 'required|integer|exists:developers,id',
+        'active'  => 'required|in:0,1',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors'  => $validator->errors(),
+        ], 422);
+    }
+
+    DB::table('developers')
+        ->where('id', $request->developer_id)
+        ->update([
+            'active' => $request->active,
+            'updated_at' => now(),
+        ]);
+
+    return response()->json([
+        'message' => 'Developer status updated successfully',
+    ]);
 }
 
 }

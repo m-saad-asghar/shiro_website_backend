@@ -24,10 +24,54 @@ use App\Http\Controllers\Api\ProjectController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\AdminAuthController;
+use App\Http\Controllers\Api\PermissionsController;
+use App\Http\Controllers\Api\NewUserController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::prefix('admin')->group(function () {
+    Route::post('login', [AdminAuthController::class, 'login']);
+    Route::middleware('auth:api')->group(function () {
+        Route::get('me', [AdminAuthController::class, 'me']);
+        Route::post('logout', [AdminAuthController::class, 'logout']);
+        Route::post('users', [AdminAuthController::class, 'store']);
+        Route::get('fetch_users', [NewUserController::class, 'index']); 
+        Route::get('fetch_developers', [DeveloperController::class, 'fetchDevelopers']);
+        Route::post('create_developer', [DeveloperController::class, 'createDeveloper']);
+        Route::get('get_developer', [DeveloperController::class, 'getDeveloper']);
+        Route::post('change_status_developer', [DeveloperController::class, 'changeStatusDeveloper']); 
+        Route::post('update_developer', [DeveloperController::class, 'updateDeveloper']);
+        Route::post('add_user', [NewUserController::class, 'store']);
+        Route::post('/delete_user', [NewUserController::class, 'delete_user']);
+        Route::post('update_user', [NewUserController::class, 'update_user']);
+        Route::post('change_status_user', [NewUserController::class, 'changeStatusUser']);
+        Route::get('roles', [AdminAuthController::class, 'get_roles']);
+        Route::post('delete_role', [AdminAuthController::class, 'delete_role']);
+        Route::post('add-role', [AdminAuthController::class, 'add_role']);
+        Route::post('update-role', [AdminAuthController::class, 'update_role']);
+        Route::post('/role-permissions/update', [PermissionsController::class, 'updateRolePermissions']);
+        Route::post('/role-permissions', [PermissionsController::class, 'storeRolePermissions']);
+        Route::get('permissions', [PermissionsController::class, 'get_permissions']);
+        Route::get('all-permissions', [PermissionsController::class, 'all_permissions']);
+        Route::post('delete_permission', [PermissionsController::class, 'delete_permission']);
+        Route::post('update-permission', [PermissionsController::class, 'update_permission']);
+        Route::get('fetch_all_listings', [ListingController::class, 'fetch_all_listings']);
+        Route::post('change_status_listing', [ListingController::class, 'changeStatusListing']);
+        Route::get('fetch_all_projects', [ProjectController::class, 'fetchAllProjects']);
+        Route::post('save_project', [ProjectController::class, 'saveProject']);
+        Route::post('change_status_project', [ProjectController::class, 'changeStatusProject']);
+        Route::get('fetch_amenities', [ProjectController::class, 'amenitiesIndex']);
+        Route::get('fetch_communities', [ProjectController::class, 'fetchCommunities']);
+        Route::get('fetch_developers_dropdown', [ProjectController::class, 'fetchDevelopersDropdown']);
+        Route::get('projects/{project_id}/edit-data', [ProjectController::class, 'editData']);
+        Route::post('projects/{id}/update', [ProjectController::class, 'updateProject']);
+     
+       
+    });
+});
 
 
 Route::prefix('static')->controller(StaticController::class)->group(function () {

@@ -9,19 +9,18 @@ class ApiCacheHeaders
 {
     public function handle(Request $request, Closure $next)
     {
-        $response = $next($request);
-
-        // Only cache GET API requests
-        if (
-            $request->is('api/*') &&
-            $request->isMethod('GET')
-        ) {
-            $response->headers->set(
-                'Cache-Control',
-                'public, max-age=3600, s-maxage=3600'
-            );
+        // ✅ Never cache admin APIs (roles, users, delete, etc.)
+        // Adjust pattern if your routes are not under /api/admin/*
+        if ($request->is('api/admin/*') || $request->is('admin/*')) {
+            return $next($request)
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         }
 
-        return $response;
+        $response = $next($request);
+
+        // ✅ Cache only public APIs (if you really want)
+        return $response->header('Cache-Control', 'max-age=3600, public, s-maxage=3600');
     }
 }

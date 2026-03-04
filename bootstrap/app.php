@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Http\Middleware\NoCache;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
 $middleware->appendToGroup('api', [
 \App\Http\Middleware\ApiCacheHeaders::class,
 ]);
+
+ $middleware->alias([
+        'no-cache' => NoCache::class,
+    ]);
 
     })
     ->withExceptions(function (Exceptions $exceptions) {

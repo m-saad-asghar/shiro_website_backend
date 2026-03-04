@@ -10,14 +10,16 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "laravel/framework": "^11.31",
-        "laravel/tinker": "^2.9",
         "awcodes/filament-tiptap-editor": "^3.5",
         "filament/filament": "3.3",
         "filament/spatie-laravel-media-library-plugin": "^3.3",
         "filament/spatie-laravel-translatable-plugin": "^3.3",
         "joaopaulolndev/filament-edit-profile": "^1.0",
+        "laravel/framework": "^11.31",
+        "laravel/passport": "^13.0",
         "laravel/sanctum": "^4.0",
+        "laravel/tinker": "^2.9",
+        "spatie/laravel-permission": "^6.24",
         "spatie/laravel-translatable": "^6.11"
     },
     "require-dev": {
@@ -77,7 +79,10 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
-        }
+        },
+        "audit": {
+      "block-insecure": false
+    }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

@@ -196,11 +196,10 @@ class AdminAuthController extends Controller
             ], 403);
         }
 
-         return "user";
 
-        $tokenResult = $user->createToken('admin-panel');
-        $accessToken = $tokenResult->accessToken;
-        $expiresAt   = $tokenResult->token->expires_at;
+        // $tokenResult = $user->createToken('admin-panel');
+        // $accessToken = $tokenResult->accessToken;
+        // $expiresAt   = $tokenResult->token->expires_at;
 
         return response()->json([
             'token_type'   => 'Bearer',

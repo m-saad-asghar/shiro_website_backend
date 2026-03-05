@@ -57,15 +57,25 @@ public function update_user(Request $request)
     // ✅ Handle image upload (optional)
     $imageName = $existingUser->profile_image; // keep old by default
 
+    // if ($request->hasFile('profile_image')) {
+    //     $file = $request->file('profile_image');
+    //     $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+    //     $file->storeAs('admin_panel/users', $imageName, 'public');
+    // }
+
     if ($request->hasFile('profile_image')) {
-        $file = $request->file('profile_image');
 
-        // Generate unique filename
-        $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+    $file = $request->file('profile_image');
 
-        // Save inside: storage/app/public/admin_panel/users
-        $file->storeAs('admin_panel/users', $imageName, 'public');
-    }
+    // Generate unique filename
+    $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+
+    // Save inside: storage/app/public/
+    $file->storeAs('', $imageName, 'public');
+
+    // Optional: save filename or path in DB
+    $path = $imageName;
+}
 
     // ✅ Prepare update data
     $updateData = [

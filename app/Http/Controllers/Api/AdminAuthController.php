@@ -11,117 +11,241 @@ use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 
 
 class AdminAuthController extends Controller
 {
-       public function update_role(Request $request)
+//        public function update_role(Request $request)
+// {
+//     $validated = $request->validate([
+//             'role_id' => ['required', 'integer'],
+//             'title'   => ['required', 'string', 'max:100'],
+//         ]);
+
+//         $roleId = (int) $validated['role_id'];
+//         $title  = trim($validated['title']);
+
+//         // 2) Find role
+//         $role = Role::query()->find($roleId);
+//         if (!$role) {
+//             return response()->json([
+//                 'message' => 'Role not found.',
+//             ], 404);
+//         }
+
+//         // 3) Generate name from title
+//         $newName = Str::snake($title);
+
+//         // 4) Guard name (keep same as existing OR force api)
+//         // Best: keep existing guard_name
+//         $guard = $role->guard_name ?? 'api';
+
+//         // 5) Check duplicates excluding this role id
+//         $exists = Role::query()
+//             ->where('guard_name', $guard)
+//             ->where('id', '!=', $roleId)
+//             ->where(function ($q) use ($newName, $title) {
+//                 $q->where('name', $newName)
+//                   ->orWhere('title', $title);
+//             })
+//             ->exists();
+
+//         if ($exists) {
+//             return response()->json([
+//                 'message' => 'Role already exists.',
+//             ], 409);
+//         }
+
+//         // 6) Update only title + name
+//         $role->title = $title;
+//         $role->name  = $newName;
+//         $role->save();
+
+//         // 7) Return success
+//         return response()->json([
+//             'message' => 'Role updated successfully.',
+//             'data' => [
+//                 'id' => $role->id,
+//                 'title' => $role->title,
+//                 'name' => $role->name,
+//                 'guard_name' => $role->guard_name,
+//                 'updated_at' => $role->updated_at,
+//             ],
+//         ], 200);
+// }
+
+public function update_role(Request $request)
 {
     $validated = $request->validate([
-            'role_id' => ['required', 'integer'],
-            'title'   => ['required', 'string', 'max:100'],
+        'role_id' => ['required', 'integer'],
+        'title'   => ['required', 'string', 'max:100'],
+    ]);
+
+    $roleId = (int) $validated['role_id'];
+    $title  = trim((string) $validated['title']);
+
+    // 1) Fetch role (no model)
+    $role = DB::table('roles')->where('id', $roleId)->first();
+
+    if (!$role) {
+        return response()->json([
+            'message' => 'Role not found.',
+        ], 404);
+    }
+
+    // 2) Generate name from title
+    $newName = Str::snake($title);
+
+    // 3) Keep existing guard_name (fallback to api)
+    // $guard = $role->guard_name ?: 'api';
+
+    // 4) Check duplicates excluding this role id
+    $exists = DB::table('roles')
+        // ->where('guard_name', $guard)
+        ->where('id', '!=', $roleId)
+        ->where(function ($q) use ($newName, $title) {
+            $q->where('name', $newName)
+              ->orWhere('title', $title);
+        })
+        ->exists();
+
+    if ($exists) {
+        return response()->json([
+            'message' => 'Role already exists.',
+        ], 409);
+    }
+
+    // 5) Update
+    $now = Carbon::now();
+
+    DB::table('roles')
+        ->where('id', $roleId)
+        ->update([
+            'title'      => $title,
+            'name'       => $newName,
+            'updated_at' => $now,
         ]);
 
-        $roleId = (int) $validated['role_id'];
-        $title  = trim($validated['title']);
+    // 6) Return updated row
+    $updated = DB::table('roles')->where('id', $roleId)->first();
 
-        // 2) Find role
-        $role = Role::query()->find($roleId);
-        if (!$role) {
-            return response()->json([
-                'message' => 'Role not found.',
-            ], 404);
-        }
-
-        // 3) Generate name from title
-        $newName = Str::snake($title);
-
-        // 4) Guard name (keep same as existing OR force api)
-        // Best: keep existing guard_name
-        $guard = $role->guard_name ?? 'api';
-
-        // 5) Check duplicates excluding this role id
-        $exists = Role::query()
-            ->where('guard_name', $guard)
-            ->where('id', '!=', $roleId)
-            ->where(function ($q) use ($newName, $title) {
-                $q->where('name', $newName)
-                  ->orWhere('title', $title);
-            })
-            ->exists();
-
-        if ($exists) {
-            return response()->json([
-                'message' => 'Role already exists.',
-            ], 409);
-        }
-
-        // 6) Update only title + name
-        $role->title = $title;
-        $role->name  = $newName;
-        $role->save();
-
-        // 7) Return success
-        return response()->json([
-            'message' => 'Role updated successfully.',
-            'data' => [
-                'id' => $role->id,
-                'title' => $role->title,
-                'name' => $role->name,
-                'guard_name' => $role->guard_name,
-                'updated_at' => $role->updated_at,
-            ],
-        ], 200);
+    return response()->json([
+        'message' => 'Role updated successfully.',
+        'data' => [
+            'id'         => $updated->id,
+            'title'      => $updated->title,
+            'name'       => $updated->name,
+            'guard_name' => $updated->guard_name,
+            'updated_at' => $updated->updated_at,
+        ],
+    ], 200);
 }
-     public function add_role(Request $request)
+
+public function add_role(Request $request)
 {
-     $validated = $request->validate([
-            'title' => ['required', 'string'],
-        ]);
+    $validated = $request->validate([
+        'title' => ['required', 'string'],
+    ]);
 
-        $title = trim($validated['title']);
+    $title = trim($validated['title']);
 
-        // 2) Generate name from title (snake_case)
-        $name = Str::snake($title);
+    // Generate name from title
+    $name = Str::snake($title);
 
-        // 3) Decide guard_name (based on your DB screenshot)
-        // $guard = 'api';
+    // Guard name
+    // $guard = 'api';
 
-        // 4) Check duplicate (by name OR title) within same guard
-        $exists = Role::query()
-            // ->where('guard_name', $guard)
-            ->where(function ($q) use ($name, $title) {
-                $q->where('name', $name)
-                  ->orWhere('title', $title);
-            })
-            ->exists();
+    // Check duplicate
+    $exists = DB::table('roles')
+        ->where(function ($q) use ($name, $title) {
+            $q->where('name', $name)
+              ->orWhere('title', $title);
+        })
+        ->exists();
 
-        if ($exists) {
-            return response()->json([
-                'message' => 'Role already exists.',
-            ], 409);
-        }
-
-        // 5) Create
-        $role = Role::create([
-            'title' => $title,
-            'name' => $name,
-            'guard_name' => $guard,
-        ]);
-
-        // 6) Return success
+    if ($exists) {
         return response()->json([
-            'message' => 'Role created successfully.',
-            'data' => [
-                'id' => $role->id,
-                'title' => $role->title,
-                'name' => $role->name,
-                'guard_name' => $role->guard_name,
-                'created_at' => $role->created_at,
-                'updated_at' => $role->updated_at,
-            ],
-        ], 201);
+            'message' => 'Role already exists.',
+        ], 409);
+    }
+
+    // Insert
+    $now = Carbon::now();
+
+    $roleId = DB::table('roles')->insertGetId([
+        'title'      => $title,
+        'name'       => $name,
+        // 'guard_name' => $guard,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    // Fetch inserted row
+    $role = DB::table('roles')->where('id', $roleId)->first();
+
+    return response()->json([
+        'message' => 'Role created successfully.',
+        'data' => [
+            'id'         => $role->id,
+            'title'      => $role->title,
+            'name'       => $role->name,
+            'guard_name' => $role->guard_name,
+            'created_at' => $role->created_at,
+            'updated_at' => $role->updated_at,
+        ],
+    ], 201);
 }
+
+//      public function add_role(Request $request)
+// {
+//      $validated = $request->validate([
+//             'title' => ['required', 'string'],
+//         ]);
+
+//         $title = trim($validated['title']);
+
+//         // 2) Generate name from title (snake_case)
+//         $name = Str::snake($title);
+
+//         // 3) Decide guard_name (based on your DB screenshot)
+//         // $guard = 'api';
+
+//         // 4) Check duplicate (by name OR title) within same guard
+//         $exists = Role::query()
+//             // ->where('guard_name', $guard)
+//             ->where(function ($q) use ($name, $title) {
+//                 $q->where('name', $name)
+//                   ->orWhere('title', $title);
+//             })
+//             ->exists();
+
+//         if ($exists) {
+//             return response()->json([
+//                 'message' => 'Role already exists.',
+//             ], 409);
+//         }
+
+//         // 5) Create
+//         $role = Role::create([
+//             'title' => $title,
+//             'name' => $name,
+//             'guard_name' => $guard,
+//         ]);
+
+//         // 6) Return success
+//         return response()->json([
+//             'message' => 'Role created successfully.',
+//             'data' => [
+//                 'id' => $role->id,
+//                 'title' => $role->title,
+//                 'name' => $role->name,
+//                 'guard_name' => $role->guard_name,
+//                 'created_at' => $role->created_at,
+//                 'updated_at' => $role->updated_at,
+//             ],
+//         ], 201);
+// }
     public function delete_role(Request $request)
 {
     $validated = $request->validate([

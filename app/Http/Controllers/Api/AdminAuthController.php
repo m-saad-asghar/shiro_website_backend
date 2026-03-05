@@ -79,7 +79,7 @@ public function update_role(Request $request)
 {
     $validated = $request->validate([
         'role_id' => ['required', 'integer'],
-        'title'   => ['required', 'string', 'max:100'],
+        'title'   => ['required', 'string'],
     ]);
 
     $roleId = (int) $validated['role_id'];
@@ -145,19 +145,16 @@ public function update_role(Request $request)
 public function add_role(Request $request)
 {
     $validated = $request->validate([
-        'title' => ['required', 'string'],
+        'title' => ['required', 'string', 'max:100'],
     ]);
 
-    $title = trim($validated['title']);
+    $title = trim((string) $validated['title']);
+    $name  = Str::snake($title);
+    $guard = 'api';
 
-    // Generate name from title
-    $name = Str::snake($title);
-
-    // Guard name
-    // $guard = 'api';
-
-    // Check duplicate
+    // Duplicate check MUST match Spatie uniqueness logic
     $exists = DB::table('roles')
+        ->where('guard_name', $guard)
         ->where(function ($q) use ($name, $title) {
             $q->where('name', $name)
               ->orWhere('title', $title);
@@ -165,35 +162,36 @@ public function add_role(Request $request)
         ->exists();
 
     if ($exists) {
-        return response()->json([
-            'message' => 'Role already exists.',
-        ], 409);
+        return response()->json(['message' => 'Role already exists.'], 409);
     }
 
-    // Insert
-    $now = Carbon::now();
+    $now = now();
 
-    $roleId = DB::table('roles')->insertGetId([
-        'title'      => $title,
-        'name'       => $name,
-        'guard_name' => 'api',
-        'created_at' => $now,
-        'updated_at' => $now,
-    ]);
+    try {
+        $roleId = DB::table('roles')->insertGetId([
+            'title'      => $title,
+            'name'       => $name,
+            'guard_name' => $guard,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('add_role failed', [
+            'msg' => $e->getMessage(),
+        ]);
 
-    // Fetch inserted row
+        // Return real reason instead of silent 500
+        return response()->json([
+            'message' => 'Failed to create role.',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+
     $role = DB::table('roles')->where('id', $roleId)->first();
 
     return response()->json([
         'message' => 'Role created successfully.',
-        'data' => [
-            'id'         => $role->id,
-            'title'      => $role->title,
-            'name'       => $role->name,
-            'guard_name' => $role->guard_name,
-            'created_at' => $role->created_at,
-            'updated_at' => $role->updated_at,
-        ],
+        'data'    => $role,
     ], 201);
 }
 

@@ -223,8 +223,8 @@ class DeveloperController extends Controller
         'email'       => ['nullable', 'email', 'max:255'],
         'description' => ['required', 'string'],
         'active'      => ['nullable', 'in:0,1'],
-        'logo'        => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-        'thumbnail'   => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        'logo'        => ['required', 'image', 'mimes:jpg,jpeg,png,webp,avif', 'max:5120'],
+        'thumbnail'   => ['required', 'image', 'mimes:jpg,jpeg,png,webp,avif', 'max:5120'],
     ], [
         'name.required'        => 'Name is required',
         'slug.required'        => 'Slug is required',

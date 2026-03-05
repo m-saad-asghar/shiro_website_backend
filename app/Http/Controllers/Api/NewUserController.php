@@ -43,7 +43,7 @@ public function update_user(Request $request)
         // ✅ confirm_password only required if password is sent
         'password_confirmation' => 'required_with:password|same:password',
 
-        'profile_image'  => 'nullable|image|mimes:jpg,jpeg,png,webp,avif|max:2048',
+        'profile_image'  => 'nullable|mimes:jpg,jpeg,png,webp,avif|max:5120',
     ]);
 
     if ($validator->fails()) {
@@ -174,7 +174,7 @@ public function update_user(Request $request)
         'phone_number'      => 'nullable|string|max:20',
         'password'          => 'required|string|min:6',
         'password_confirmation'  => 'required|same:password',
-        'profile_image' => 'nullable|image|mimes:jpg,jpeg,png,webp,avif|max:2048',
+       'profile_image'  => 'nullable|mimes:jpg,jpeg,png,webp,avif|max:5120',
     ]);
 
     if ($validator->fails()) {

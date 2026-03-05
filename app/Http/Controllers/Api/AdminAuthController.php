@@ -76,7 +76,7 @@ class AdminAuthController extends Controller
      public function add_role(Request $request)
 {
      $validated = $request->validate([
-            'title' => ['required', 'string', 'max:100'],
+            'title' => ['required', 'string'],
         ]);
 
         $title = trim($validated['title']);
@@ -85,11 +85,11 @@ class AdminAuthController extends Controller
         $name = Str::snake($title);
 
         // 3) Decide guard_name (based on your DB screenshot)
-        $guard = 'api';
+        // $guard = 'api';
 
         // 4) Check duplicate (by name OR title) within same guard
         $exists = Role::query()
-            ->where('guard_name', $guard)
+            // ->where('guard_name', $guard)
             ->where(function ($q) use ($name, $title) {
                 $q->where('name', $name)
                   ->orWhere('title', $title);

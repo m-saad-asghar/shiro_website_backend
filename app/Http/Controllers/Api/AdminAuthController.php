@@ -176,7 +176,7 @@ public function add_role(Request $request)
     $roleId = DB::table('roles')->insertGetId([
         'title'      => $title,
         'name'       => $name,
-        // 'guard_name' => $guard,
+        'guard_name' => 'api',
         'created_at' => $now,
         'updated_at' => $now,
     ]);

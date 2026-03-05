@@ -163,7 +163,7 @@ public function update_user(Request $request)
         'email'             => 'required|email|unique:users,email',
         'phone_number'      => 'nullable|string|max:20',
         'password'          => 'required|string|min:6',
-        'confirm_password'  => 'required|same:password',
+        'password_confirmation'  => 'required|same:password',
         'profile_image' => 'nullable|image|mimes:jpg,jpeg,png,webp,avif|max:2048',
     ]);
 

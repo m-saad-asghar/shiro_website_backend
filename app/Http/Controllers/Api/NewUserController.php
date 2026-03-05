@@ -184,8 +184,11 @@ if ($request->hasFile('profile_image')) {
     // Generate unique filename
     $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
 
-    // Save inside: storage/app/public/admin_panel/users
-    $file->storeAs('admin_panel/users', $imageName, 'public');
+    // Save inside: storage/app/public/
+    $file->storeAs('', $imageName, 'public');
+
+    // Optional: save filename or path in DB
+    $path = $imageName;
 }
 
 // ✅ Insert using DB

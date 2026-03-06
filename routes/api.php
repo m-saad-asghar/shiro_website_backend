@@ -67,7 +67,17 @@ Route::prefix('admin')->group(function () {
         Route::get('fetch_developers_dropdown', [ProjectController::class, 'fetchDevelopersDropdown']);
         Route::get('projects/{project_id}/edit-data', [ProjectController::class, 'editData']);
         Route::post('projects/{id}/update', [ProjectController::class, 'updateProject']);
-    Route::middleware('auth:api')->group(function () {
+        Route::get('amenities', [ProjectController::class, 'fetchAmenities']);
+        Route::post('add-amenity', [ProjectController::class, 'add_amenity']);
+        Route::put('amenities/{id}', [ProjectController::class, 'update_amenity']);
+        Route::delete('amenities/{id}', [ProjectController::class, 'delete_amenity']);
+        Route::post('change_status_amenity', [ProjectController::class, 'changeStatusAmenity']);
+        Route::get('communities', [CommunityController::class, 'fetchCommuntiesForAdminPanel']); 
+        Route::post('add-community', [CommunityController::class, 'add_community']);
+        Route::put('communities/{id}', [CommunityController::class, 'update_community']);
+        Route::delete('communities/{id}', [CommunityController::class, 'delete_community']);
+        Route::post('change_status_communities', [CommunityController::class, 'changeStatusCommunity']);
+        Route::middleware('auth:api')->group(function () {
         // Route::get('me', [AdminAuthController::class, 'me']);
         // Route::post('logout', [AdminAuthController::class, 'logout']);
         // Route::post('users', [AdminAuthController::class, 'store']);

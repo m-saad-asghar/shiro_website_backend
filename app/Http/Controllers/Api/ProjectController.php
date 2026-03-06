@@ -1155,4 +1155,196 @@ if (count($uspArr) === 0) {
     }
 }
 
+public function fetchAmenities(Request $request)
+    {
+        // per_page from frontend, default 10, hard-limit to avoid abuse
+        $perPage = (int) $request->query('per_page', 10);
+        if ($perPage <= 0) $perPage = 10;
+        if ($perPage > 100) $perPage = 100;
+
+        // page from frontend (Laravel paginator reads ?page=)
+        $query = DB::table('amenities')
+            ->select(['id', 'name', 'active', 'created_at', 'updated_at'])
+            ->orderByDesc('id');
+
+        // Optional: filter active (active=1/0)
+        if ($request->has('active')) {
+            $active = (int) $request->query('active');
+            if ($active === 0 || $active === 1) {
+                $query->where('active', $active);
+            }
+        }
+
+        // Optional: search by name (?search=pool)
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Amenities fetched successfully.',
+            'data' => $paginator->items(),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page'     => $paginator->perPage(),
+                'last_page'    => $paginator->lastPage(),
+                'total'        => $paginator->total(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
+        ], 200);
+    }
+
+    public function add_amenity(Request $request)
+{
+    $validated = $request->validate([
+        'name' => ['required', 'string'],
+    ]);
+    $name = trim((string) $validated['name']);
+    $exists = DB::table('amenities')
+        ->where(function ($q) use ($name) {
+            $q->where('name', $name);
+        })
+        ->exists();
+
+    if ($exists) {
+        return response()->json(['message' => 'Amenity already exists.'], 409);
+    }
+
+    $now = now();
+
+    try {
+        $amenityId = DB::table('amenities')->insertGetId([
+            'name'       => $name,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('add_amenity failed', [
+            'msg' => $e->getMessage(),
+        ]);
+
+        // Return real reason instead of silent 500
+        return response()->json([
+            'message' => 'Failed to create amenity.',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+
+    $amenity = DB::table('amenities')->where('id', $amenityId)->first();
+
+    return response()->json([
+        'message' => 'Amenity created successfully.',
+        'data'    => $amenity,
+    ], 201);
+}
+
+public function update_amenity(Request $request, $id)
+{
+    $id = (int) $id;
+
+    $validated = $request->validate([
+        'name' => ['required', 'string'],
+    ]);
+
+    $name = trim((string) $validated['name']);
+
+    // 1) check exists
+    $amenity = DB::table('amenities')->where('id', $id)->first();
+    if (!$amenity) {
+        return response()->json(['message' => 'Amenity not found.'], 404);
+    }
+
+    // 2) check duplicate name (excluding current id)
+    $exists = DB::table('amenities')
+        ->where('id', '!=', $id)
+        ->where('name', $name)
+        ->exists();
+
+    if ($exists) {
+        return response()->json(['message' => 'Amenity already exists.'], 409);
+    }
+
+    try {
+        DB::table('amenities')->where('id', $id)->update([
+            'name'       => $name,
+            'updated_at' => now(),
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('update_amenity failed', [
+            'id'  => $id,
+            'msg' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'message' => 'Failed to update amenity.',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+
+    $updated = DB::table('amenities')->where('id', $id)->first();
+
+    return response()->json([
+        'message' => 'Amenity updated successfully.',
+        'data'    => $updated,
+    ], 200);
+}
+
+public function delete_amenity($id)
+{
+    $id = (int) $id;
+
+    $exists = DB::table('amenities')->where('id', $id)->exists();
+    if (!$exists) {
+        return response()->json(['message' => 'Amenity not found.'], 404);
+    }
+
+    try {
+        DB::table('amenities')->where('id', $id)->delete();
+    } catch (\Throwable $e) {
+        \Log::error('delete_amenity failed', [
+            'id'  => $id,
+            'msg' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'message' => 'Failed to delete amenity.',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+
+    return response()->json([
+        'message' => 'Amenity deleted successfully.',
+    ], 200);
+}
+
+  public function changeStatusAmenity(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'amenity_id' => 'required|integer|exists:amenities,id',
+        'active'  => 'required|in:0,1',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors'  => $validator->errors(),
+        ], 422);
+    }
+
+    DB::table('amenities')
+        ->where('id', $request->amenity_id)
+        ->update([
+            'active' => $request->active,
+            'updated_at' => now(),
+        ]);
+
+    return response()->json([
+        'message' => 'Amenity status updated successfully',
+    ]);
+}
+
 }

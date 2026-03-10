@@ -39,9 +39,17 @@ Route::prefix('admin')->group(function () {
         Route::post('users', [AdminAuthController::class, 'store']);
         Route::get('fetch_users', [NewUserController::class, 'index']); 
         Route::get('fetch_developers', [DeveloperController::class, 'fetchDevelopers']);
+         Route::get('fetch_employees', [EmployeeController::class, 'fetchEmployees']);
         Route::post('create_developer', [DeveloperController::class, 'createDeveloper']);
         Route::get('get_developer', [DeveloperController::class, 'getDeveloper']);
         Route::post('change_status_developer', [DeveloperController::class, 'changeStatusDeveloper']); 
+        Route::post('change_status_employee', [EmployeeController::class, 'changeStatusEmployee']);
+        Route::get('fetch_position', [EmployeeController::class, 'fetchPosition']);
+        Route::get('fetch_departments', [EmployeeController::class, 'fetchDepartments']);
+        Route::get('fetch_crm_agents', [EmployeeController::class, 'fetchCrmAgents']);
+        Route::post('create_employee', [EmployeeController::class, 'createEmployee']);
+        Route::post('update_employee', [EmployeeController::class, 'updateEmployee']);
+        Route::get('get_employee', [EmployeeController::class, 'getEmployee']);
         Route::post('update_developer', [DeveloperController::class, 'updateDeveloper']);
         Route::post('add_user', [NewUserController::class, 'store']);
         Route::post('/delete_user', [NewUserController::class, 'delete_user']);

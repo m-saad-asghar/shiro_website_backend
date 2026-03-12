@@ -85,6 +85,17 @@ Route::prefix('admin')->group(function () {
         Route::put('communities/{id}', [CommunityController::class, 'update_community']);
         Route::delete('communities/{id}', [CommunityController::class, 'delete_community']);
         Route::post('change_status_communities', [CommunityController::class, 'changeStatusCommunity']);
+        Route::get('departments', [EmployeeController::class, 'getDepartments']);
+        Route::post('add-department', [EmployeeController::class, 'addDepartment']);
+        Route::put('departments/{id}', [EmployeeController::class, 'updateDepartment']);
+        Route::delete('departments/{id}', [EmployeeController::class, 'deleteDepartment']);
+        Route::post('change_status_department', [EmployeeController::class, 'changeStatusDepartment']); 
+
+        Route::get('positions', [EmployeeController::class, 'getPositions']);
+        Route::post('add-position', [EmployeeController::class, 'addPosition']);
+        Route::put('positions/{id}', [EmployeeController::class, 'updatePosition']);
+        Route::delete('positions/{id}', [EmployeeController::class, 'deletePosition']);
+
         Route::middleware('auth:api')->group(function () {
         // Route::get('me', [AdminAuthController::class, 'me']);
         // Route::post('logout', [AdminAuthController::class, 'logout']);

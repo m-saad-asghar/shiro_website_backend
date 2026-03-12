@@ -573,4 +573,234 @@ public function updateEmployee(Request $request)
     }
 }
 
+public function getDepartments(Request $request)
+{
+    $page = (int) $request->input('page', 1);
+    $perPage = (int) $request->input('per_page', 10);
+    $search = trim((string) $request->input('search', ''));
+
+    $query = DB::table('departments');
+
+    if ($search !== '') {
+        $query->where('title', 'LIKE', "%{$search}%");
+    }
+
+    $total = $query->count();
+
+    $departments = $query
+        ->orderByDesc('id')
+        ->offset(($page - 1) * $perPage)
+        ->limit($perPage)
+        ->get();
+
+    $data = $departments->map(function ($item) {
+        return [
+            'id' => $item->id,
+            'name' => $item->title,
+            'active' => $item->active,
+            'created_at' => $item->created_at,
+            'updated_at' => null,
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Departments fetched successfully',
+        'data' => $data,
+        'pagination' => [
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'last_page' => ceil($total / $perPage),
+            'total' => $total,
+            'from' => ($page - 1) * $perPage + 1,
+            'to' => ($page - 1) * $perPage + $data->count(),
+        ],
+    ]);
+}
+
+public function addDepartment(Request $request)
+{
+    $request->validate([
+        'name' => 'required|string|max:256|unique:departments,title'
+    ]);
+
+    $id = DB::table('departments')->insertGetId([
+        'title' => $request->name,
+        'active' => 1,
+        'created_at' => now()
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Department created successfully',
+        'data' => [
+            'id' => $id,
+            'name' => $request->name,
+            'active' => 1
+        ]
+    ]);
+}
+
+public function updateDepartment(Request $request, $id)
+{
+    $request->validate([
+        'name' => 'required|string|max:256|unique:departments,title,' . $id
+    ]);
+
+    DB::table('departments')
+        ->where('id', $id)
+        ->update([
+            'title' => $request->name
+        ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Department updated successfully'
+    ]);
+}
+
+public function deleteDepartment($id)
+{
+    DB::table('departments')
+        ->where('id', $id)
+        ->delete();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Department deleted successfully'
+    ]);
+}
+
+public function changeStatusDepartment(Request $request)
+{
+    $request->validate([
+        'department_id' => 'required|exists:departments,id',
+        'active' => 'required|in:0,1'
+    ]);
+
+    DB::table('departments')
+        ->where('id', $request->department_id)
+        ->update([
+            'active' => $request->active
+        ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Department status updated successfully'
+    ]);
+}
+
+public function getPositions(Request $request)
+{
+    $page = (int) $request->input('page', 1);
+    $perPage = (int) $request->input('per_page', 10);
+    $search = trim((string) $request->input('search', ''));
+
+    $query = DB::table('positions');
+
+    if ($search !== '') {
+        $query->where('title', 'LIKE', "%{$search}%");
+    }
+
+    $total = $query->count();
+
+    $positions = $query
+        ->orderByDesc('id')
+        ->offset(($page - 1) * $perPage)
+        ->limit($perPage)
+        ->get();
+
+    $data = $positions->map(function ($item) {
+        return [
+            'id' => $item->id,
+            'name' => $item->title, // frontend expects name
+            'created_at' => $item->created_at,
+            'updated_at' => null,
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Positions fetched successfully',
+        'data' => $data,
+        'pagination' => [
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'last_page' => (int) ceil($total / $perPage),
+            'total' => $total,
+            'from' => $total > 0 ? (($page - 1) * $perPage) + 1 : null,
+            'to' => $data->count() > 0 ? (($page - 1) * $perPage) + $data->count() : null,
+        ],
+    ]);
+}
+
+public function addPosition(Request $request)
+{
+    $request->validate([
+        'name' => 'required|string|max:256|unique:positions,title',
+    ]);
+
+    $id = DB::table('positions')->insertGetId([
+        'title' => $request->name,
+        'created_at' => now(),
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Position created successfully',
+        'data' => [
+            'id' => $id,
+            'name' => $request->name,
+        ],
+    ]);
+}
+
+public function updatePosition(Request $request, $id)
+{
+    $exists = DB::table('positions')->where('id', $id)->exists();
+
+    if (!$exists) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Position not found',
+        ], 404);
+    }
+
+    $request->validate([
+        'name' => 'required|string|max:256|unique:positions,title,' . $id,
+    ]);
+
+    DB::table('positions')
+        ->where('id', $id)
+        ->update([
+            'title' => $request->name,
+        ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Position updated successfully',
+    ]);
+}
+
+public function deletePosition($id)
+{
+    $exists = DB::table('positions')->where('id', $id)->exists();
+
+    if (!$exists) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Position not found',
+        ], 404);
+    }
+
+    DB::table('positions')
+        ->where('id', $id)
+        ->delete();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Position deleted successfully',
+    ]);
+}
+
 }

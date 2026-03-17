@@ -84,6 +84,7 @@ Route::prefix('admin')->group(function () {
         Route::post('add-community', [CommunityController::class, 'add_community']);
         Route::put('communities/{id}', [CommunityController::class, 'update_community']);
         Route::delete('communities/{id}', [CommunityController::class, 'delete_community']);
+         Route::get('communities/{id}', [CommunityController::class, 'get_single_community']);
         Route::post('change_status_communities', [CommunityController::class, 'changeStatusCommunity']);
         Route::get('departments', [EmployeeController::class, 'getDepartments']);
         Route::post('add-department', [EmployeeController::class, 'addDepartment']);

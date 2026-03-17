@@ -27,7 +27,7 @@ class AreaController extends Controller
                 ->when($request->filled('search'), function ($query) use ($request) {
                     $query->where('name', 'LIKE', '%' . trim($request->search) . '%');
                 })
-                ->orderBy('name', 'asc')
+                ->orderBy('name', 'desc')
                 ->paginate($perPage);
 
             return response()->json([

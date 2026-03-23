@@ -24,26 +24,19 @@ public function update_user(Request $request)
     }
 
     $validator = Validator::make($request->all(), [
-        'user_id'        => 'required|integer|exists:users,id',
-        'first_name'     => 'required|string|max:100',
-        'last_name'      => 'required|string|max:100',
-
-        // ✅ IMPORTANT: unique email BUT ignore current user_id
-        'email'          => [
+        'user_id'               => 'required|integer|exists:users,id',
+        'first_name'            => 'required|string|max:100',
+        'last_name'             => 'required|string|max:100',
+        'email'                 => [
             'required',
             'email',
             Rule::unique('users', 'email')->ignore($request->user_id),
         ],
-
-        'phone_number'   => 'nullable|string|max:20',
-
-        // ✅ Password is OPTIONAL on update
-        'password'       => 'nullable|string|min:6',
-
-        // ✅ confirm_password only required if password is sent
+        'phone_number'          => 'nullable|string|max:20',
+        'password'              => 'nullable|string|min:6',
         'password_confirmation' => 'required_with:password|same:password',
-
-        'profile_image'  => 'nullable|mimes:jpg,jpeg,png,webp,avif|max:5120',
+        'profile_image'         => 'nullable|mimes:jpg,jpeg,png,webp,avif|max:5120',
+        'role_id'               => 'required|integer|exists:roles,id',
     ]);
 
     if ($validator->fails()) {
@@ -52,56 +45,118 @@ public function update_user(Request $request)
             'errors'  => $validator->errors(),
         ], 422);
     }
-    
 
-    // ✅ Handle image upload (optional)
-    $imageName = $existingUser->profile_image; // keep old by default
+    DB::beginTransaction();
 
-    // if ($request->hasFile('profile_image')) {
-    //     $file = $request->file('profile_image');
-    //     $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-    //     $file->storeAs('admin_panel/users', $imageName, 'public');
-    // }
+    try {
+        // Keep old image by default
+        $imageName = $existingUser->profile_image;
 
-    if ($request->hasFile('profile_image')) {
+        // Handle image upload (optional)
+        if ($request->hasFile('profile_image')) {
+            $file = $request->file('profile_image');
 
-    $file = $request->file('profile_image');
+            // Generate unique filename
+            $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
 
-    // Generate unique filename
-    $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            // Save inside: storage/app/public/
+            $file->storeAs('', $imageName, 'public');
+        }
 
-    // Save inside: storage/app/public/
-    $file->storeAs('', $imageName, 'public');
+        // Prepare update data
+        $updateData = [
+            'first_name'    => $request->first_name,
+            'last_name'     => $request->last_name,
+            'email'         => $request->email,
+            'phone_number'  => $request->phone_number,
+            'profile_image' => $imageName,
+            'updated_at'    => now(),
+        ];
 
-    // Optional: save filename or path in DB
-    $path = $imageName;
-}
+        // Only update password if provided
+        if ($request->filled('password')) {
+            $updateData['password'] = Hash::make($request->password);
+        }
 
-    // ✅ Prepare update data
-    $updateData = [
-        'first_name'   => $request->first_name,
-        'last_name'    => $request->last_name,
-        'email'        => $request->email,
-        'phone_number' => $request->phone_number,
-        'profile_image'=> $imageName,
-        'updated_at'   => now(),
-    ];
+        // Update user
+        DB::table('users')
+            ->where('id', $request->user_id)
+            ->update($updateData);
 
-    // ✅ Only update password if user provided it (do NOT override with null/empty)
-    if ($request->filled('password')) {
-        $updateData['password'] = Hash::make($request->password);
+        /*
+        |--------------------------------------------------------------------------
+        | Update role in model_has_roles
+        |--------------------------------------------------------------------------
+        | We keep existing model_type if already present.
+        | If no role row exists yet, fallback to App\Models\User
+        |--------------------------------------------------------------------------
+        */
+        $existingRoleRow = DB::table('model_has_roles')
+            ->where('model_id', $request->user_id)
+            ->first();
+
+        $modelType = $existingRoleRow && !empty($existingRoleRow->model_type)
+            ? $existingRoleRow->model_type
+            : 'App\\Models\\User';
+
+        // Remove old roles for this user
+        DB::table('model_has_roles')
+            ->where('model_id', $request->user_id)
+            ->delete();
+
+        // Insert new role
+        DB::table('model_has_roles')->insert([
+            'role_id'    => $request->role_id,
+            'model_type' => $modelType,
+            'model_id'   => $request->user_id,
+        ]);
+
+        // Fetch updated user with role
+        $user = DB::table('users')
+            ->leftJoin('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
+            ->leftJoin('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->where('users.id', $request->user_id)
+            ->select(
+                'users.id',
+                'users.first_name',
+                'users.last_name',
+                'users.email',
+                'users.phone_number',
+                'users.profile_image',
+                'users.active',
+                'users.created_at',
+                'users.updated_at',
+                DB::raw('MAX(roles.title) as role'),
+                DB::raw('MAX(roles.name) as role_name')
+            )
+            ->groupBy(
+                'users.id',
+                'users.first_name',
+                'users.last_name',
+                'users.email',
+                'users.phone_number',
+                'users.profile_image',
+                'users.active',
+                'users.created_at',
+                'users.updated_at'
+            )
+            ->first();
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'User updated successfully',
+            'data'    => $user,
+        ], 200);
+
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'message' => 'Something went wrong while updating user',
+            'error'   => $e->getMessage(),
+        ], 500);
     }
-
-    // ✅ Update user
-    DB::table('users')->where('id', $request->user_id)->update($updateData);
-
-    // ✅ Fetch updated user
-    $user = DB::table('users')->where('id', $request->user_id)->first();
-
-    return response()->json([
-        'message' => 'User updated successfully',
-        'data'    => $user,
-    ], 200);
 }
 
     public function delete_user(Request $request)
@@ -165,16 +220,18 @@ public function update_user(Request $request)
             'message' => 'User deleted successfully',
         ], 200);
     }
-  public function store(Request $request)
+ 
+    public function store(Request $request)
 {
     $validator = Validator::make($request->all(), [
-        'first_name'        => 'required|string|max:100',
-        'last_name'         => 'required|string|max:100',
-        'email'             => 'required|email|unique:users,email',
-        'phone_number'      => 'nullable|string|max:20',
-        'password'          => 'required|string|min:6',
-        'password_confirmation'  => 'required|same:password',
-       'profile_image'  => 'nullable|mimes:jpg,jpeg,png,webp,avif|max:5120',
+        'first_name'            => 'required|string|max:100',
+        'last_name'             => 'required|string|max:100',
+        'email'                 => 'required|email|unique:users,email',
+        'phone_number'          => 'nullable|string|max:20',
+        'password'              => 'required|string|min:6',
+        'password_confirmation' => 'required|same:password',
+        'profile_image'         => 'nullable|mimes:jpg,jpeg,png,webp,avif|max:5120',
+        'role_id'               => 'required|integer|exists:roles,id',
     ]);
 
     if ($validator->fails()) {
@@ -184,43 +241,97 @@ public function update_user(Request $request)
         ], 422);
     }
 
-    // ✅ Handle image upload (optional)
-   $imageName = null;
+    DB::beginTransaction();
 
-if ($request->hasFile('profile_image')) {
+    try {
+        // Handle image upload (optional)
+        $imageName = null;
 
-    $file = $request->file('profile_image');
+        if ($request->hasFile('profile_image')) {
+            $file = $request->file('profile_image');
 
-    // Generate unique filename
-    $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            // Generate unique filename
+            $imageName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
 
-    // Save inside: storage/app/public/
-    $file->storeAs('', $imageName, 'public');
+            // Save inside: storage/app/public/
+            $file->storeAs('', $imageName, 'public');
+        }
 
-    // Optional: save filename or path in DB
-    $path = $imageName;
-}
+        // Insert user
+        $userId = DB::table('users')->insertGetId([
+            'first_name'    => $request->first_name,
+            'last_name'     => $request->last_name,
+            'email'         => $request->email,
+            'phone_number'  => $request->phone_number,
+            'password'      => Hash::make($request->password),
+            'profile_image' => $imageName,
+            'active'        => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ]);
 
-// ✅ Insert using DB
-$userId = DB::table('users')->insertGetId([
-    'first_name'   => $request->first_name,
-    'last_name'    => $request->last_name,
-    'email'        => $request->email,
-    'phone_number' => $request->phone_number,
-    'password'     => Hash::make($request->password),
-    'profile_image'=> $imageName, // only filename
-    'active'       => 1,
-    'created_at'   => now(),
-    'updated_at'   => now(),
-]);
+        /*
+        |--------------------------------------------------------------------------
+        | Save role in model_has_roles
+        |--------------------------------------------------------------------------
+        | Fallback model_type used below.
+        | If your project uses a different model_type string, change it.
+        |--------------------------------------------------------------------------
+        */
+        $modelType = 'App\\Models\\User';
 
-    // ✅ Fetch created user
-    $user = DB::table('users')->where('id', $userId)->first();
+        DB::table('model_has_roles')->insert([
+            'role_id'    => $request->role_id,
+            'model_type' => $modelType,
+            'model_id'   => $userId,
+        ]);
 
-    return response()->json([
-        'message' => 'User created successfully',
-        'data'    => $user,
-    ], 201);
+        // Fetch created user with role
+        $user = DB::table('users')
+            ->leftJoin('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
+            ->leftJoin('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->where('users.id', $userId)
+            ->select(
+                'users.id',
+                'users.first_name',
+                'users.last_name',
+                'users.email',
+                'users.phone_number',
+                'users.profile_image',
+                'users.active',
+                'users.created_at',
+                'users.updated_at',
+                DB::raw('MAX(roles.title) as role'),
+                DB::raw('MAX(roles.name) as role_name')
+            )
+            ->groupBy(
+                'users.id',
+                'users.first_name',
+                'users.last_name',
+                'users.email',
+                'users.phone_number',
+                'users.profile_image',
+                'users.active',
+                'users.created_at',
+                'users.updated_at'
+            )
+            ->first();
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'User created successfully',
+            'data'    => $user,
+        ], 201);
+
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'message' => 'Something went wrong while creating user',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
 }
 
 
@@ -250,7 +361,7 @@ $userId = DB::table('users')->insertGetId([
         'message' => 'User status updated successfully',
     ]);
 }
-     public function index(Request $request)
+   public function index(Request $request)
 {
     $perPage = (int) $request->query('per_page', 10);
     $perPage = max(1, min($perPage, 100));
@@ -259,28 +370,44 @@ $userId = DB::table('users')->insertGetId([
     $search = trim($request->query('search', ''));
 
     $query = DB::table('users')
-        ->select([
-            'id',
-            'first_name',
-            'last_name',
-            'email',
-            'phone_number',
-            'profile_image',
-            'active',
-            'created_at',
-            'updated_at',
-        ]);
+        ->leftJoin('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
+        ->leftJoin('roles', 'model_has_roles.role_id', '=', 'roles.id')
+        ->select(
+            'users.id',
+            'users.first_name',
+            'users.last_name',
+            'users.email',
+            'users.phone_number',
+            'users.profile_image',
+            'users.active',
+            'users.created_at',
+            'users.updated_at',
+            DB::raw('MAX(roles.title) as role'),
+            DB::raw('MAX(roles.name) as role_name')
+        );
 
-    // 🔍 Search Support (first_name + last_name)
     if (!empty($search)) {
         $query->where(function ($q) use ($search) {
-            $q->where('first_name', 'LIKE', "%{$search}%")
-              ->orWhere('last_name', 'LIKE', "%{$search}%");
+            $q->where('users.first_name', 'LIKE', "%{$search}%")
+              ->orWhere('users.last_name', 'LIKE', "%{$search}%")
+              ->orWhere('users.email', 'LIKE', "%{$search}%")
+              ->orWhere('users.phone_number', 'LIKE', "%{$search}%");
         });
     }
 
     $users = $query
-        ->orderByDesc('id')
+        ->groupBy(
+            'users.id',
+            'users.first_name',
+            'users.last_name',
+            'users.email',
+            'users.phone_number',
+            'users.profile_image',
+            'users.active',
+            'users.created_at',
+            'users.updated_at'
+        )
+        ->orderByDesc('users.id')
         ->paginate($perPage, ['*'], 'page', $page);
 
     return response()->json([
